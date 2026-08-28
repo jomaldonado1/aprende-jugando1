@@ -1,0 +1,950 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
+import PricingCards from '../components/PricingCards';
+import { 
+  Trophy, BookOpen, CheckCircle, Lock, Play, Plus, 
+  LogOut, Sparkles, Award, Star, RefreshCw, X, ChevronRight,
+  Brain, FileText, HelpCircle, AlertTriangle, Lightbulb, Edit3, Send, MessageSquare, UploadCloud, Eye, EyeOff, Globe, Zap, Crown
+} from 'lucide-react';
+
+export default function StudentDashboard() {
+  const { user, logout } = useAuth();
+  const [notes, setNotes] = useState([]);
+  const [attempts, setAttempts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Modal & Quiz states
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [selectedBlock, setSelectedBlock] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [quizResult, setQuizResult] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [evalError, setEvalError] = useState(null);
+  const [showExpectedAnswers, setShowExpectedAnswers] = useState({});
+
+  // AI Generator Form States
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [createMode, setCreateMode] = useState('notes'); // 'notes' | 'topic'
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [topicQuery, setTopicQuery] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [generateStep, setGenerateStep] = useState('');
+  
+  // File Upload State & Ref
+  const [extractingFile, setExtractingFile] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [notesRes, attemptsRes] = await Promise.all([
+        api.get('/api/notes'),
+        api.get('/api/attempts')
+      ]);
+      setNotes(notesRes.data);
+      setAttempts(attemptsRes.data);
+      if (notesRes.data.length > 0 && !selectedNote) {
+        setSelectedNote(notesRes.data[0]);
+      }
+    } catch (err) {
+      console.error('Error al cargar datos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Si el título está vacío, sugerir el nombre del archivo sin extensión
+    if (!newTitle.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, "");
+      setNewTitle(cleanName);
+    }
+
+    setExtractingFile(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/api/notes/extract-file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setNewContent(res.data.extracted_text);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al extraer texto del archivo');
+    } finally {
+      setExtractingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleGenerateGame = async (e) => {
+    e.preventDefault();
+
+    let titleToSend = '';
+    let contentToSend = '';
+
+    if (createMode === 'notes') {
+      if (!newTitle.trim() || !newContent.trim()) return;
+      titleToSend = newTitle.trim();
+      contentToSend = newContent.trim();
+    } else {
+      if (!topicQuery.trim()) return;
+      titleToSend = topicQuery.trim();
+      contentToSend = `Genera un juego de estudio exhaustivo y detallado sobre el siguiente tema: ${topicQuery.trim()}. Incluye conceptos clave, contexto, definiciones esenciales, aplicaciones prácticas y ejemplos representativos para dominar la materia.`;
+    }
+
+    setGenerating(true);
+    setGenerateStep('Analizando tema de estudio...');
+
+    try {
+      setTimeout(() => setGenerateStep('Invocando a Gemini AI...'), 1200);
+      setTimeout(() => setGenerateStep('Generando 5 niveles y 25 preguntas gamificadas...'), 2800);
+
+      const res = await api.post('/api/notes/generate', {
+        title: titleToSend,
+        content: contentToSend
+      });
+
+      setNewTitle('');
+      setNewContent('');
+      setTopicQuery('');
+      setShowAddNote(false);
+      await fetchData();
+      setSelectedNote(res.data);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al generar el juego con Gemini AI');
+    } finally {
+      setGenerating(false);
+      setGenerateStep('');
+    }
+  };
+
+  const handleStartQuiz = (block) => {
+    if (!block.is_unlocked) return;
+    setSelectedBlock(block);
+    setAnswers({});
+    setQuizResult(null);
+    setShowExpectedAnswers({});
+    setEvalError(null);
+    setSubmitting(false);
+  };
+
+  const toggleExpectedAnswer = (index) => {
+    setShowExpectedAnswers((prev) => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const handleAnswerChange = (questionId, value) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (!selectedBlock) return;
+
+    const payload = {
+      block_id: selectedBlock.id,
+      answers: Object.entries(answers).map(([qId, val]) => ({
+        question_id: parseInt(qId),
+        selected_option: val
+      }))
+    };
+
+    setSubmitting(true);
+    setEvalError(null);
+    try {
+      const res = await api.post('/api/quiz/submit', payload);
+      setQuizResult(res.data);
+      await fetchData();
+      if (selectedNote) {
+        const updatedBlocks = await api.get(`/api/notes/${selectedNote.id}/blocks`);
+        setSelectedNote({ ...selectedNote, blocks: updatedBlocks.data });
+      }
+      setSubmitting(false);
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || 'Error de conexión con la IA evaluadora. Por favor intenta de nuevo.';
+      setEvalError(errorMsg);
+    }
+  };
+
+  const handleCloseEvalError = () => {
+    setSubmitting(false);
+    setEvalError(null);
+  };
+
+  const completedBlocksCount = notes.reduce(
+    (acc, note) => acc + (note.blocks?.filter((b) => b.is_completed).length || 0), 0
+  );
+  const totalBlocksCount = notes.reduce(
+    (acc, note) => acc + (note.blocks?.length || 0), 0
+  );
+
+  const getQuestionTypeBadge = (type) => {
+    switch (type) {
+      case 'multiple_choice':
+        return { label: 'Opción Múltiple', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30', icon: CheckCircle };
+      case 'cloze':
+        return { label: 'Completar Espacio', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30', icon: Edit3 };
+      case 'open_ended':
+        return { label: 'Desarrollo Conceptual', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30', icon: Brain };
+      case 'examples':
+        return { label: 'Caso / Ejemplo Práctico', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: Lightbulb };
+      case 'trick_question':
+        return { label: 'Pregunta Capciosa', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30', icon: AlertTriangle };
+      default:
+        return { label: 'Pregunta', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', icon: HelpCircle };
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      {/* Top Navbar */}
+      <header className="glass-panel sticky top-0 z-40 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/25">
+            <Trophy className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="font-extrabold text-lg text-white leading-tight">Aprende Jugando</h1>
+            <p className="text-xs text-slate-400">Plataforma Educativa Gamificada con Gemini AI</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-full border border-slate-800 text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span className="text-slate-300 font-semibold">{user?.email}</span>
+            <span className={`px-2 py-0.5 rounded-md font-bold uppercase text-[10px] border ${
+              user?.plan_type === 'free'
+                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+            }`}>
+              Plan {user?.plan_type || 'free'} ({user?.credits || 0} Créditos)
+            </span>
+            {user?.plan_type === 'free' && user?.role !== 'admin' && (
+              <button
+                onClick={() => setShowPricingModal(true)}
+                className="px-2.5 py-0.5 bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-600 hover:to-purple-700 text-white rounded-md font-extrabold text-[10px] shadow-sm cursor-pointer transition-all"
+              >
+                ⭐ Ver Planes Premium
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={logout}
+            className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-all border border-slate-800 cursor-pointer"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        
+        {/* Gamified Header Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="glass-card p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+              <CheckCircle className="w-7 h-7" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Niveles Desbloqueados</p>
+              <h3 className="text-2xl font-black text-white mt-0.5">
+                {completedBlocksCount} <span className="text-sm font-normal text-slate-500">/ {totalBlocksCount}</span>
+              </h3>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+              <Award className="w-7 h-7" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Experiencia Acumulada</p>
+              <h3 className="text-2xl font-black text-white mt-0.5">
+                {completedBlocksCount * 250} <span className="text-xs font-semibold text-indigo-400">XP</span>
+              </h3>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+              <Star className="w-7 h-7" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Pruebas Evaluadas</p>
+              <h3 className="text-2xl font-black text-white mt-0.5">{attempts.length}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Section Header & Create Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Brain className="w-6 h-6 text-indigo-400" />
+              Tus Juegos de Estudio Gamificados
+            </h2>
+            <p className="text-xs text-slate-400">Pega o sube un apunte (PDF, DOCX, TXT) y deja que Gemini AI genere tus 5 niveles de juego.</p>
+          </div>
+
+          <button
+            onClick={() => setShowAddNote(true)}
+            className="py-3 px-5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            Generar Juego con Gemini AI
+          </button>
+        </div>
+
+        {/* Layout Column: Notes Selector & Level Roadmap */}
+        {loading ? (
+          <div className="p-16 text-center text-slate-500 space-y-2">
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-slate-400">Cargando tus lecciones y mapa de avance...</p>
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="glass-panel p-12 rounded-3xl text-center border border-slate-800 space-y-4">
+            <div className="w-16 h-16 bg-indigo-500/10 text-indigo-400 rounded-full flex items-center justify-center mx-auto border border-indigo-500/20">
+              <FileText className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">No tienes apuntes de estudio generados</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                Haz clic en el botón superior para subir un archivo o pegar tu texto de estudio y crear automáticamente tus 5 niveles con 25 preguntas estructuradas.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            {/* Sidebar: Notes Navigation */}
+            <div className="lg:col-span-1 space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Tus Apuntes</h3>
+              <div className="space-y-2">
+                {notes.map((note) => {
+                  const isDemo = note.is_free || ["Segunda Guerra Mundial", "Sistema Digestivo", "Teorema de Tales"].includes(note.title);
+                  return (
+                    <button
+                      key={note.id}
+                      onClick={() => setSelectedNote(note)}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all cursor-pointer ${
+                        selectedNote?.id === note.id
+                          ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/10'
+                          : 'bg-slate-900/60 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-sm truncate pr-2">{note.title}</h4>
+                        <ChevronRight className="w-4 h-4 shrink-0 text-slate-500" />
+                      </div>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <p className="text-[11px] text-slate-500">
+                          {note.blocks?.filter((b) => b.is_completed).length || 0} / {note.blocks?.length || 5} Niveles
+                        </p>
+                        {isDemo && (
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-extrabold uppercase tracking-wider flex items-center gap-1">
+                            <Sparkles className="w-2.5 h-2.5" /> Demo Gratuita
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Main Section: Gamified Level Roadmap */}
+            {selectedNote && (
+              <div className="lg:col-span-3 space-y-6">
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800">
+                  <div className="mb-6 pb-4 border-b border-slate-800">
+                    <span className="text-[10px] font-extrabold uppercase bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-md border border-indigo-500/30">
+                      Modulo Activo
+                    </span>
+                    <h3 className="text-2xl font-black text-white mt-2">{selectedNote.title}</h3>
+                    <div className="mt-3 max-h-52 overflow-y-auto p-4 bg-slate-900/90 rounded-2xl border border-slate-800/90 shadow-inner">
+                      <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                        {selectedNote.content}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Level Roadmap Grid */}
+                  <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    Mapa de Niveles y Desafíos
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    {selectedNote.blocks?.map((block) => {
+                      const isUnlocked = block.is_unlocked;
+                      const isCompleted = block.is_completed;
+
+                      return (
+                        <div
+                          key={block.id}
+                          className={`p-4 rounded-2xl border flex flex-col justify-between relative overflow-hidden transition-all ${
+                            isCompleted
+                              ? 'bg-emerald-950/30 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                              : isUnlocked
+                              ? 'bg-indigo-950/30 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
+                              : 'bg-slate-900/40 border-slate-800/60 opacity-60'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs font-black text-white bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
+                                NIVEL {block.level}
+                              </span>
+
+                              {isCompleted ? (
+                                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                              ) : isUnlocked ? (
+                                <Sparkles className="w-4 h-4 text-indigo-400" />
+                              ) : (
+                                <Lock className="w-4 h-4 text-slate-500" />
+                              )}
+                            </div>
+
+                            <p className="text-[11px] font-medium text-slate-300 mb-4">
+                              {block.questions?.length || 5} preguntas estructuradas
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => handleStartQuiz(block)}
+                            disabled={!isUnlocked}
+                            className={`w-full py-2 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              isCompleted
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                                : isUnlocked
+                                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {isCompleted ? (
+                              'Repasar'
+                            ) : isUnlocked ? (
+                              <>
+                                <Play className="w-3 h-3 fill-current" />
+                                Jugar
+                              </>
+                            ) : (
+                              'Bloqueado'
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* MODAL: REPRODUCTOR DE QUIZZES MULTI-TIPO CON EVALUACIÓN SEMÁNTICA */}
+      {selectedBlock && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 border border-slate-700 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setSelectedBlock(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-md uppercase border border-indigo-500/30">
+                Nivel {selectedBlock.level}
+              </span>
+              <h3 className="text-xl font-black text-white">Desafío de Estudio Gamificado</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-6">Responde las 5 preguntas del nivel para avanzar en el mapa.</p>
+
+            {quizResult ? (
+              <div className="space-y-6 py-2">
+                <div className="text-center space-y-3">
+                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${
+                    quizResult.is_passed
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-xl shadow-emerald-500/20'
+                      : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                  }`}>
+                    {quizResult.is_passed ? <CheckCircle className="w-8 h-8" /> : <X className="w-8 h-8" />}
+                  </div>
+
+                  <div>
+                    <h4 className="text-2xl font-black text-white">
+                      {quizResult.is_passed ? '¡Nivel Superado con Éxito!' : 'Aún no apruebas este Nivel'}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Calificación Promedio: <span className="font-bold text-white text-base">{quizResult.score}%</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Per-Question Semantic Feedback Details */}
+                {quizResult.details && quizResult.details.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-purple-400" />
+                      Retroalimentación Semántica de Gemini AI
+                    </h5>
+
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                      {quizResult.details.map((detail, dIdx) => (
+                        <div
+                          key={dIdx}
+                          className={`p-4 rounded-2xl border text-xs space-y-2 ${
+                            detail.is_correct
+                              ? 'bg-emerald-950/20 border-emerald-500/30'
+                              : 'bg-rose-950/20 border-rose-500/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-300">Pregunta {dIdx + 1}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                                detail.is_correct
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              }`}
+                            >
+                              {detail.is_correct ? 'Correcta' : 'A Revisar'} ({detail.score}%)
+                            </span>
+                          </div>
+
+                          <p className="font-semibold text-white">{detail.prompt}</p>
+
+                          <div className="bg-slate-900/80 p-2.5 rounded-xl space-y-1 text-[11px] text-slate-400">
+                            <p><span className="text-slate-500 font-medium">Tu Respuesta:</span> <span className="text-slate-200">{detail.user_answer || '(en blanco)'}</span></p>
+                          </div>
+
+                          <div className="flex items-start gap-1.5 text-indigo-300 text-[11px] bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-500/20">
+                            <MessageSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                            <p><span className="font-bold text-indigo-200">AI Feedback:</span> {detail.feedback}</p>
+                          </div>
+
+                          {/* Spoiler Toggle: Respuesta Esperada */}
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpectedAnswer(dIdx)}
+                              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer bg-slate-900/70 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700"
+                            >
+                              {showExpectedAnswers[dIdx] ? (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Ocultar respuesta esperada</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Ver respuesta esperada</span>
+                                </>
+                              )}
+                            </button>
+
+                            {showExpectedAnswers[dIdx] && (
+                              <div className="mt-2 bg-indigo-950/40 p-3 rounded-xl border border-indigo-500/30 text-[11px] text-indigo-200">
+                                <span className="font-bold text-indigo-300 block mb-0.5">Respuesta Esperada / Rúbrica:</span>
+                                <p className="text-slate-200 leading-relaxed">{detail.expected_answer}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setSelectedBlock(null)}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+                >
+                  Regresar al Mapa de Niveles
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {selectedBlock.questions?.map((q, idx) => {
+                  const badge = getQuestionTypeBadge(q.type);
+                  const BadgeIcon = badge.icon;
+
+                  let options = [];
+                  if (q.type === 'multiple_choice') {
+                    try {
+                      options = JSON.parse(q.options_json);
+                    } catch (e) {
+                      options = [];
+                    }
+                  }
+
+                  return (
+                    <div key={q.id} className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-500">Pregunta {idx + 1} de 5</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase border flex items-center gap-1 ${badge.color}`}>
+                          <BadgeIcon className="w-3 h-3" />
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      <p className="text-sm font-bold text-white leading-snug">{q.prompt}</p>
+
+                      {/* Render Multiple Choice */}
+                      {q.type === 'multiple_choice' && (
+                        <div className="space-y-2 pt-1">
+                          {options.map((opt, oIdx) => (
+                            <button
+                              key={oIdx}
+                              type="button"
+                              onClick={() => handleAnswerChange(q.id, opt)}
+                              className={`w-full p-3 rounded-xl text-xs font-medium text-left transition-all border cursor-pointer ${
+                                answers[q.id] === opt
+                                  ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
+                                  : 'bg-slate-800/40 border-slate-700/60 text-slate-300 hover:bg-slate-800'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Render Cloze (Completar) */}
+                      {q.type === 'cloze' && (
+                        <div className="pt-1">
+                          <input
+                            type="text"
+                            value={answers[q.id] || ''}
+                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                            placeholder="Escribe la palabra faltante que reemplaza '___'..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      )}
+
+                      {/* Render Open Ended, Examples & Trick Questions */}
+                      {(q.type === 'open_ended' || q.type === 'examples' || q.type === 'trick_question') && (
+                        <div className="pt-1 space-y-2">
+                          <textarea
+                            rows={2}
+                            value={answers[q.id] || ''}
+                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                            placeholder={
+                              q.type === 'examples'
+                                ? "Menciona un ejemplo o caso de uso práctico..."
+                                : q.type === 'trick_question'
+                                ? "Responde identificando la trampa o malentendido habitual..."
+                                : "Explica brevemente tu respuesta conceptual..."
+                            }
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={handleSubmitQuiz}
+                  disabled={submitting || Object.keys(answers).length < (selectedBlock.questions?.length || 0)}
+                  className="w-full py-3.5 px-4 font-bold rounded-xl text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white disabled:opacity-40 cursor-pointer"
+                >
+                  <Send className="w-4 h-4 text-purple-200" />
+                  <span>Enviar y Evaluar Nivel</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP GAMIFICADO DE CARGA Y ERRORES DURANTE LA EVALUACIÓN CON IA */}
+      {submitting && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
+          <div className={`glass-panel max-w-md w-full rounded-3xl p-8 border text-center space-y-6 shadow-2xl relative overflow-hidden transition-all ${
+            evalError ? 'border-rose-500/40 bg-slate-900/95' : 'border-indigo-500/30'
+          }`}>
+            {/* Dynamic Background Glow */}
+            <div className={`absolute -top-12 -left-12 w-32 h-32 rounded-full blur-2xl pointer-events-none ${
+              evalError ? 'bg-rose-500/20' : 'bg-indigo-500/20'
+            }`} />
+            <div className={`absolute -bottom-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none ${
+              evalError ? 'bg-amber-500/20' : 'bg-purple-500/20'
+            }`} />
+
+            <div className="relative z-10 space-y-5">
+              {!evalError ? (
+                /* ESTADO DE CARGA ANIMADO */
+                <>
+                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 border-r-purple-500 animate-spin" />
+                    <Brain className="w-10 h-10 text-indigo-400 animate-bounce" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xl font-black text-white">Evaluando Nivel</h4>
+                    <p className="text-sm font-semibold text-indigo-200 leading-relaxed px-2">
+                      🧠 La IA está evaluando tus respuestas... <br />
+                      <span className="text-amber-300 font-extrabold text-base">¡Cruza los dedos! 🤞</span>
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                      Analizando coherencia semántica...
+                    </span>
+                  </div>
+                </>
+              ) : (
+                /* ESTADO DE ERROR CON OPCIÓN DE REINTENTO */
+                <>
+                  <div className="w-20 h-20 mx-auto rounded-full bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-500/10">
+                    <AlertTriangle className="w-10 h-10 text-rose-400 animate-pulse" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xl font-black text-white">Servidor de IA Concurrido</h4>
+                    <p className="text-xs text-rose-200 bg-rose-950/40 p-4 rounded-2xl border border-rose-500/30 leading-relaxed text-left">
+                      {evalError}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSubmitQuiz}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RefreshCw className="w-4 h-4 text-amber-300" />
+                      <span>🔄 Volver a Intentar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCloseEvalError}
+                      className="w-full sm:w-auto py-3 px-5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: FORMULARIO GENERADOR CON GEMINI AI Y SUBIDA DE ARCHIVOS */}
+      {showAddNote && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-xl rounded-3xl p-6 border border-slate-700 shadow-2xl relative">
+            <button
+              onClick={() => !generating && !extractingFile && setShowAddNote(false)}
+              disabled={generating || extractingFile}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer disabled:opacity-30"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              <h3 className="text-xl font-bold text-white">Generar Juego con Gemini AI</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-5">
+              Elige cómo deseas crear tu juego de estudio pedagógico en 5 niveles.
+            </p>
+
+            {/* DEMO-WALL OVERLAY PARA USUARIOS GRATUITOS */}
+            {user?.plan_type === 'free' && user?.role !== 'admin' && (user?.credits || 0) <= 0 && (
+              <div className="absolute inset-x-0 bottom-0 top-16 z-30 bg-slate-950/90 backdrop-blur-md rounded-b-3xl flex flex-col items-center justify-center p-6 text-center border-t border-slate-800 space-y-4">
+                <div className="p-4 bg-amber-500/10 text-amber-400 rounded-3xl border border-amber-500/20 shadow-xl animate-pulse">
+                  <Lock className="w-10 h-10" />
+                </div>
+                <div className="space-y-1.5 max-w-sm">
+                  <h4 className="text-lg font-black text-white">Generación de Juegos IA Bloqueada</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Los usuarios del <strong>Plan Gratuito</strong> pueden jugar de forma ilimitada las 3 Demos Gratuita. Para crear juegos con tus propios apuntes o temas, sube a un plan Premium.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPricingModal(true)}
+                  className="py-3 px-6 bg-gradient-to-r from-amber-500 via-purple-600 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-xl shadow-purple-500/30 transition-all cursor-pointer transform hover:scale-105"
+                >
+                  ⭐ Desbloquear Generación IA
+                </button>
+              </div>
+            )}
+
+            {/* Modalidad Selector Tabs */}
+            <div className="flex bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 mb-6">
+              <button
+                type="button"
+                onClick={() => setCreateMode('notes')}
+                disabled={generating || extractingFile}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  createMode === 'notes'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-indigo-300" />
+                <span>📚 Subir mis apuntes</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreateMode('topic')}
+                disabled={generating || extractingFile}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  createMode === 'topic'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                }`}
+              >
+                <Globe className="w-4 h-4 text-purple-300" />
+                <span>🌍 Explorar un tema a elección</span>
+              </button>
+            </div>
+
+            {/* Input Oculto de Archivo */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".pdf,.docx,.txt"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            <form onSubmit={handleGenerateGame} className="space-y-4">
+              {/* OPCIÓN A: SUBIR MIS APUNTES */}
+              {createMode === 'notes' && (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Título del Apunte</label>
+                      <input
+                        type="text"
+                        required={createMode === 'notes'}
+                        disabled={generating || extractingFile}
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder="Ej: Historia Universal - Segunda Guerra Mundial"
+                        className="w-full bg-slate-900 border border-slate-700/80 rounded-xl py-2.5 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div className="sm:self-end">
+                      <button
+                        type="button"
+                        disabled={generating || extractingFile}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="py-2.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 hover:text-indigo-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        <UploadCloud className="w-4 h-4 text-indigo-400" />
+                        {extractingFile ? 'Leyendo File...' : 'Subir Archivo (.pdf, .docx, .txt)'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-slate-300">Contenido / Notas de Estudio</label>
+                      {extractingFile && (
+                        <span className="text-[11px] text-indigo-400 font-bold animate-pulse flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Extrayendo texto...
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      required={createMode === 'notes'}
+                      rows={6}
+                      disabled={generating || extractingFile}
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="Pega aquí todo el texto de estudio o sube un archivo con el botón de arriba..."
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-xl py-2.5 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 leading-relaxed"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* OPCIÓN B: EXPLORAR TEMA LIBRE */}
+              {createMode === 'topic' && (
+                <div className="space-y-3 py-2">
+                  <label className="block text-xs font-bold text-slate-300">¿Qué tema te gustaría aprender hoy?</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required={createMode === 'topic'}
+                      disabled={generating}
+                      value={topicQuery}
+                      onChange={(e) => setTopicQuery(e.target.value)}
+                      placeholder="Ej: La Segunda Guerra Mundial, El Teorema de Pitágoras, Fotosíntesis..."
+                      className="w-full bg-slate-900 border-2 border-indigo-500/50 rounded-2xl py-3.5 px-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400 shadow-xl shadow-indigo-500/10 leading-relaxed font-medium"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 italic">
+                    💡 Gemini AI investigará y estructurará automáticamente los 5 niveles pedagógicos para ti.
+                  </p>
+                </div>
+              )}
+
+              {generating ? (
+                <div className="py-4 text-center space-y-3 bg-slate-900/90 rounded-2xl border border-indigo-500/30">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-bold text-indigo-300 animate-pulse">{generateStep}</p>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={
+                    createMode === 'notes'
+                      ? extractingFile || !newTitle.trim() || !newContent.trim()
+                      : !topicQuery.trim()
+                  }
+                  className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                >
+                  <Send className="w-4 h-4" />
+                  Generar Juego de Estudio
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE SUSCRIPCIONES Y PRICING SAAS */}
+      {showPricingModal && (
+        <PricingCards onClose={() => setShowPricingModal(false)} />
+      )}
+    </div>
+  );
+}
