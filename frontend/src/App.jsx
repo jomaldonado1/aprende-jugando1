@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './pages/AuthPage';
 import StudentDashboard from './pages/StudentDashboard';
 import AdminPanel from './pages/AdminPanel';
+import api from './api/axios';
+
+// Ping silencioso al backend cada 10 min para que Render no se duerma
+function useKeepAlive() {
+  useEffect(() => {
+    const ping = () => {
+      api.get('/').catch(() => {}); // silencioso, no importa si falla
+    };
+    ping(); // ping inmediato al cargar
+    const interval = setInterval(ping, 10 * 60 * 1000); // cada 10 min
+    return () => clearInterval(interval);
+  }, []);
+}
 
 function MainRouter() {
   const { user, loading } = useAuth();
+  useKeepAlive();
 
   if (loading) {
     return (
