@@ -145,3 +145,76 @@ class AdminAttemptDetail(BaseModel):
     score: float
     is_passed: bool
     created_at: datetime
+
+# ─────────────────────────────────────────────
+# Hint (Pista de IA) Schemas
+# ─────────────────────────────────────────────
+class HintRequest(BaseModel):
+    question_id: int
+    prompt: str
+    question_type: str
+    correct_answer: str
+
+class HintResponse(BaseModel):
+    hint: str
+
+# ─────────────────────────────────────────────
+# Match / Duel Schemas
+# ─────────────────────────────────────────────
+class MatchCreate(BaseModel):
+    note_id: int
+
+class MatchOut(BaseModel):
+    id: int
+    share_code: str
+    note_id: int
+    note_title: str
+    creator_email: str
+    created_at: datetime
+    share_link: str
+
+    class Config:
+        from_attributes = True
+
+class MatchParticipantSubmit(BaseModel):
+    score_total: float
+    time_spent_seconds: int
+    accuracy_percentage: float
+
+class MatchParticipantOut(BaseModel):
+    id: int
+    player_name: str
+    score_total: float
+    time_spent_seconds: int
+    accuracy_percentage: float
+    completed_at: datetime
+    rank: int = 1
+
+    class Config:
+        from_attributes = True
+
+class MatchDetailOut(BaseModel):
+    id: int
+    share_code: str
+    note_id: int
+    note_title: str
+    creator_email: str
+    created_at: datetime
+    questions: List[QuestionOut] = []
+    leaderboard: List[MatchParticipantOut] = []
+
+# ─────────────────────────────────────────────
+# Leaderboard Schemas
+# ─────────────────────────────────────────────
+class LeaderboardEntry(BaseModel):
+    rank: int
+    player_name: str
+    score: float
+    time_spent_seconds: int
+    accuracy_percentage: float
+    completed_at: datetime
+
+class LeaderboardOut(BaseModel):
+    note_id: int
+    note_title: str
+    entries: List[LeaderboardEntry] = []

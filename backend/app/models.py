@@ -17,6 +17,8 @@ class User(Base):
 
     notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
     attempts = relationship("Attempt", back_populates="user", cascade="all, delete-orphan")
+    match_sessions = relationship("MatchSession", back_populates="creator", cascade="all, delete-orphan")
+    match_participants = relationship("MatchParticipant", back_populates="user", cascade="all, delete-orphan")
 
 
 class Note(Base):
@@ -31,6 +33,7 @@ class Note(Base):
 
     user = relationship("User", back_populates="notes")
     blocks = relationship("Block", back_populates="note", cascade="all, delete-orphan")
+    match_sessions = relationship("MatchSession", back_populates="note", cascade="all, delete-orphan")
 
 
 class Block(Base):
@@ -72,3 +75,35 @@ class Attempt(Base):
 
     user = relationship("User", back_populates="attempts")
     block = relationship("Block", back_populates="attempts")
+
+
+class MatchSession(Base):
+    """Representa un duelo/desafío creado por un usuario para un tema específico."""
+    __tablename__ = "match_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    share_code = Column(String(8), unique=True, index=True, nullable=False)
+    note_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
+    creator_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", back_populates="match_sessions")
+    note = relationship("Note", back_populates="match_sessions")
+    participants = relationship("MatchParticipant", back_populates="match", cascade="all, delete-orphan")
+
+
+class MatchParticipant(Base):
+    """Resultado de un participante dentro de un duelo."""
+    __tablename__ = "match_participants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("match_sessions.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    guest_name = Column(String, nullable=True)
+    score_total = Column(Float, nullable=False, default=0.0)
+    time_spent_seconds = Column(Integer, nullable=False, default=0)
+    accuracy_percentage = Column(Float, nullable=False, default=0.0)
+    completed_at = Column(DateTime, default=datetime.utcnow)
+
+    match = relationship("MatchSession", back_populates="participants")
+    user = relationship("User", back_populates="match_participants")

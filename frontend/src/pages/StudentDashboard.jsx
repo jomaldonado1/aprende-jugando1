@@ -2,10 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import PricingCards from '../components/PricingCards';
+import QuizWizard from '../components/QuizWizard';
+import TopicLeaderboardModal from '../components/TopicLeaderboardModal';
+import DuelLobbyView from './DuelLobbyView';
+import DuelResultView from './DuelResultView';
 import { 
   Trophy, BookOpen, CheckCircle, Lock, Play, Plus, 
   LogOut, Sparkles, Award, Star, RefreshCw, X, ChevronRight,
-  Brain, FileText, HelpCircle, AlertTriangle, Lightbulb, Edit3, Send, MessageSquare, UploadCloud, Eye, EyeOff, Globe, Zap, Crown
+  Brain, FileText, HelpCircle, AlertTriangle, Lightbulb, Edit3, Send, MessageSquare, UploadCloud, Eye, EyeOff, Globe, Zap, Crown,
+  Swords, Medal
 } from 'lucide-react';
 
 export default function StudentDashboard() {
@@ -17,11 +22,12 @@ export default function StudentDashboard() {
   // Modal & Quiz states
   const [selectedNote, setSelectedNote] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
-  const [answers, setAnswers] = useState({});
   const [quizResult, setQuizResult] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [evalError, setEvalError] = useState(null);
-  const [showExpectedAnswers, setShowExpectedAnswers] = useState({});
+  // Leaderboard modal
+  const [leaderboardNote, setLeaderboardNote] = useState(null);
+  // Duel modal
+  const [duelNote, setDuelNote] = useState(null);
+  const [duelResult, setDuelResult] = useState(null);
 
   // AI Generator Form States
   const [showAddNote, setShowAddNote] = useState(false);
@@ -136,59 +142,19 @@ export default function StudentDashboard() {
   const handleStartQuiz = (block) => {
     if (!block.is_unlocked) return;
     setSelectedBlock(block);
-    setAnswers({});
     setQuizResult(null);
-    setShowExpectedAnswers({});
-    setEvalError(null);
-    setSubmitting(false);
   };
 
-  const toggleExpectedAnswer = (index) => {
-    setShowExpectedAnswers((prev) => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
-  };
-
-  const handleAnswerChange = (questionId, value) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: value
-    }));
-  };
-
-  const handleSubmitQuiz = async () => {
-    if (!selectedBlock) return;
-
-    const payload = {
-      block_id: selectedBlock.id,
-      answers: Object.entries(answers).map(([qId, val]) => ({
-        question_id: parseInt(qId),
-        selected_option: val
-      }))
-    };
-
-    setSubmitting(true);
-    setEvalError(null);
-    try {
-      const res = await api.post('/api/quiz/submit', payload);
-      setQuizResult(res.data);
-      await fetchData();
-      if (selectedNote) {
-        const updatedBlocks = await api.get(`/api/notes/${selectedNote.id}/blocks`);
-        setSelectedNote({ ...selectedNote, blocks: updatedBlocks.data });
-      }
-      setSubmitting(false);
-    } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Error de conexión con la IA evaluadora. Por favor intenta de nuevo.';
-      setEvalError(errorMsg);
+  const handleQuizComplete = async (result) => {
+    setQuizResult(result);
+    await fetchData();
+    if (selectedNote) {
+      const updatedBlocks = await api.get(`/api/notes/${selectedNote.id}/blocks`);
+      setSelectedNote({ ...selectedNote, blocks: updatedBlocks.data });
     }
   };
 
-  const handleCloseEvalError = () => {
-    setSubmitting(false);
-    setEvalError(null);
-  };
+
 
   const completedBlocksCount = notes.reduce(
     (acc, note) => acc + (note.blocks?.filter((b) => b.is_completed).length || 0), 0
@@ -433,28 +399,45 @@ export default function StudentDashboard() {
                             </p>
                           </div>
 
-                          <button
-                            onClick={() => handleStartQuiz(block)}
-                            disabled={!isUnlocked}
-                            className={`w-full py-2 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                              isCompleted
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
-                                : isUnlocked
-                                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
-                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                            }`}
-                          >
-                            {isCompleted ? (
-                              'Repasar'
-                            ) : isUnlocked ? (
-                              <>
-                                <Play className="w-3 h-3 fill-current" />
-                                Jugar
-                              </>
-                            ) : (
-                              'Bloqueado'
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => handleStartQuiz(block)}
+                              disabled={!isUnlocked}
+                              className={`w-full py-2 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                isCompleted
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                                  : isUnlocked
+                                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                'Repasar'
+                              ) : isUnlocked ? (
+                                <><Play className="w-3 h-3 fill-current" />Jugar</>
+                              ) : (
+                                'Bloqueado'
+                              )}
+                            </button>
+
+                            {/* Botones de Ranking y Duelo */}
+                            {isUnlocked && (
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <button
+                                  onClick={() => setLeaderboardNote(selectedNote)}
+                                  className="py-1.5 px-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                                >
+                                  <Trophy className="w-3 h-3" /> Ranking
+                                </button>
+                                <button
+                                  onClick={() => setDuelNote(selectedNote)}
+                                  className="py-1.5 px-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                                >
+                                  <Swords className="w-3 h-3" /> Duelo
+                                </button>
+                              </div>
                             )}
-                          </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -466,298 +449,30 @@ export default function StudentDashboard() {
         )}
       </main>
 
-      {/* MODAL: REPRODUCTOR DE QUIZZES MULTI-TIPO CON EVALUACIÓN SEMÁNTICA */}
+      {/* MODAL: QUIZ WIZARD (nuevo modo paso a paso) */}
       {selectedBlock && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 border border-slate-700 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setSelectedBlock(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer z-10"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-4">
               <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-md uppercase border border-indigo-500/30">
                 Nivel {selectedBlock.level}
               </span>
               <h3 className="text-xl font-black text-white">Desafío de Estudio Gamificado</h3>
             </div>
-            <p className="text-xs text-slate-400 mb-6">Responde las 5 preguntas del nivel para avanzar en el mapa.</p>
 
-            {quizResult ? (
-              <div className="space-y-6 py-2">
-                <div className="text-center space-y-3">
-                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${
-                    quizResult.is_passed
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-xl shadow-emerald-500/20'
-                      : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                  }`}>
-                    {quizResult.is_passed ? <CheckCircle className="w-8 h-8" /> : <X className="w-8 h-8" />}
-                  </div>
-
-                  <div>
-                    <h4 className="text-2xl font-black text-white">
-                      {quizResult.is_passed ? '¡Nivel Superado con Éxito!' : 'Aún no apruebas este Nivel'}
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Calificación Promedio: <span className="font-bold text-white text-base">{quizResult.score}%</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Per-Question Semantic Feedback Details */}
-                {quizResult.details && quizResult.details.length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Brain className="w-4 h-4 text-purple-400" />
-                      Retroalimentación Semántica de Gemini AI
-                    </h5>
-
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                      {quizResult.details.map((detail, dIdx) => (
-                        <div
-                          key={dIdx}
-                          className={`p-4 rounded-2xl border text-xs space-y-2 ${
-                            detail.is_correct
-                              ? 'bg-emerald-950/20 border-emerald-500/30'
-                              : 'bg-rose-950/20 border-rose-500/30'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-300">Pregunta {dIdx + 1}</span>
-                            <span
-                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                                detail.is_correct
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              {detail.is_correct ? 'Correcta' : 'A Revisar'} ({detail.score}%)
-                            </span>
-                          </div>
-
-                          <p className="font-semibold text-white">{detail.prompt}</p>
-
-                          <div className="bg-slate-900/80 p-2.5 rounded-xl space-y-1 text-[11px] text-slate-400">
-                            <p><span className="text-slate-500 font-medium">Tu Respuesta:</span> <span className="text-slate-200">{detail.user_answer || '(en blanco)'}</span></p>
-                          </div>
-
-                          <div className="flex items-start gap-1.5 text-indigo-300 text-[11px] bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-500/20">
-                            <MessageSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                            <p><span className="font-bold text-indigo-200">AI Feedback:</span> {detail.feedback}</p>
-                          </div>
-
-                          {/* Spoiler Toggle: Respuesta Esperada */}
-                          <div className="pt-1">
-                            <button
-                              type="button"
-                              onClick={() => toggleExpectedAnswer(dIdx)}
-                              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer bg-slate-900/70 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700"
-                            >
-                              {showExpectedAnswers[dIdx] ? (
-                                <>
-                                  <EyeOff className="w-3.5 h-3.5 text-indigo-400" />
-                                  <span>Ocultar respuesta esperada</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="w-3.5 h-3.5 text-indigo-400" />
-                                  <span>Ver respuesta esperada</span>
-                                </>
-                              )}
-                            </button>
-
-                            {showExpectedAnswers[dIdx] && (
-                              <div className="mt-2 bg-indigo-950/40 p-3 rounded-xl border border-indigo-500/30 text-[11px] text-indigo-200">
-                                <span className="font-bold text-indigo-300 block mb-0.5">Respuesta Esperada / Rúbrica:</span>
-                                <p className="text-slate-200 leading-relaxed">{detail.expected_answer}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setSelectedBlock(null)}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
-                >
-                  Regresar al Mapa de Niveles
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {selectedBlock.questions?.map((q, idx) => {
-                  const badge = getQuestionTypeBadge(q.type);
-                  const BadgeIcon = badge.icon;
-
-                  let options = [];
-                  if (q.type === 'multiple_choice') {
-                    try {
-                      options = JSON.parse(q.options_json);
-                    } catch (e) {
-                      options = [];
-                    }
-                  }
-
-                  return (
-                    <div key={q.id} className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-500">Pregunta {idx + 1} de 5</span>
-                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase border flex items-center gap-1 ${badge.color}`}>
-                          <BadgeIcon className="w-3 h-3" />
-                          {badge.label}
-                        </span>
-                      </div>
-
-                      <p className="text-sm font-bold text-white leading-snug">{q.prompt}</p>
-
-                      {/* Render Multiple Choice */}
-                      {q.type === 'multiple_choice' && (
-                        <div className="space-y-2 pt-1">
-                          {options.map((opt, oIdx) => (
-                            <button
-                              key={oIdx}
-                              type="button"
-                              onClick={() => handleAnswerChange(q.id, opt)}
-                              className={`w-full p-3 rounded-xl text-xs font-medium text-left transition-all border cursor-pointer ${
-                                answers[q.id] === opt
-                                  ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
-                                  : 'bg-slate-800/40 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Render Cloze (Completar) */}
-                      {q.type === 'cloze' && (
-                        <div className="pt-1">
-                          <input
-                            type="text"
-                            value={answers[q.id] || ''}
-                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                            placeholder="Escribe la palabra faltante que reemplaza '___'..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      )}
-
-                      {/* Render Open Ended, Examples & Trick Questions */}
-                      {(q.type === 'open_ended' || q.type === 'examples' || q.type === 'trick_question') && (
-                        <div className="pt-1 space-y-2">
-                          <textarea
-                            rows={2}
-                            value={answers[q.id] || ''}
-                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                            placeholder={
-                              q.type === 'examples'
-                                ? "Menciona un ejemplo o caso de uso práctico..."
-                                : q.type === 'trick_question'
-                                ? "Responde identificando la trampa o malentendido habitual..."
-                                : "Explica brevemente tu respuesta conceptual..."
-                            }
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={handleSubmitQuiz}
-                  disabled={submitting || Object.keys(answers).length < (selectedBlock.questions?.length || 0)}
-                  className="w-full py-3.5 px-4 font-bold rounded-xl text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white disabled:opacity-40 cursor-pointer"
-                >
-                  <Send className="w-4 h-4 text-purple-200" />
-                  <span>Enviar y Evaluar Nivel</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* POPUP GAMIFICADO DE CARGA Y ERRORES DURANTE LA EVALUACIÓN CON IA */}
-      {submitting && (
-        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
-          <div className={`glass-panel max-w-md w-full rounded-3xl p-8 border text-center space-y-6 shadow-2xl relative overflow-hidden transition-all ${
-            evalError ? 'border-rose-500/40 bg-slate-900/95' : 'border-indigo-500/30'
-          }`}>
-            {/* Dynamic Background Glow */}
-            <div className={`absolute -top-12 -left-12 w-32 h-32 rounded-full blur-2xl pointer-events-none ${
-              evalError ? 'bg-rose-500/20' : 'bg-indigo-500/20'
-            }`} />
-            <div className={`absolute -bottom-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none ${
-              evalError ? 'bg-amber-500/20' : 'bg-purple-500/20'
-            }`} />
-
-            <div className="relative z-10 space-y-5">
-              {!evalError ? (
-                /* ESTADO DE CARGA ANIMADO */
-                <>
-                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 border-r-purple-500 animate-spin" />
-                    <Brain className="w-10 h-10 text-indigo-400 animate-bounce" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-xl font-black text-white">Evaluando Nivel</h4>
-                    <p className="text-sm font-semibold text-indigo-200 leading-relaxed px-2">
-                      🧠 La IA está evaluando tus respuestas... <br />
-                      <span className="text-amber-300 font-extrabold text-base">¡Cruza los dedos! 🤞</span>
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-500/30 text-xs font-bold text-indigo-300">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                      Analizando coherencia semántica...
-                    </span>
-                  </div>
-                </>
-              ) : (
-                /* ESTADO DE ERROR CON OPCIÓN DE REINTENTO */
-                <>
-                  <div className="w-20 h-20 mx-auto rounded-full bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-500/10">
-                    <AlertTriangle className="w-10 h-10 text-rose-400 animate-pulse" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-xl font-black text-white">Servidor de IA Concurrido</h4>
-                    <p className="text-xs text-rose-200 bg-rose-950/40 p-4 rounded-2xl border border-rose-500/30 leading-relaxed text-left">
-                      {evalError}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleSubmitQuiz}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <RefreshCw className="w-4 h-4 text-amber-300" />
-                      <span>🔄 Volver a Intentar</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleCloseEvalError}
-                      className="w-full sm:w-auto py-3 px-5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <QuizWizard
+              block={selectedBlock}
+              noteId={selectedNote?.id}
+              onClose={() => setSelectedBlock(null)}
+              onComplete={handleQuizComplete}
+            />
           </div>
         </div>
       )}
@@ -944,6 +659,44 @@ export default function StudentDashboard() {
       {/* MODAL DE SUSCRIPCIONES Y PRICING SAAS */}
       {showPricingModal && (
         <PricingCards onClose={() => setShowPricingModal(false)} />
+      )}
+
+      {/* MODAL: LEADERBOARD GLOBAL DEL TEMA */}
+      {leaderboardNote && (
+        <TopicLeaderboardModal
+          noteId={leaderboardNote.id}
+          noteTitle={leaderboardNote.title}
+          onClose={() => setLeaderboardNote(null)}
+        />
+      )}
+
+      {/* MODAL: DUELO / DESAFÍO */}
+      {duelNote && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-lg rounded-3xl p-6 border border-slate-700 shadow-2xl relative">
+            <button
+              onClick={() => { setDuelNote(null); setDuelResult(null); }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {duelResult ? (
+              <DuelResultView
+                myResult={duelResult}
+                matchData={null}
+                onBack={() => { setDuelNote(null); setDuelResult(null); }}
+              />
+            ) : (
+              <DuelLobbyView
+                noteId={duelNote.id}
+                noteTitle={duelNote.title}
+                onBack={() => setDuelNote(null)}
+                onDuelComplete={(result) => setDuelResult(result)}
+              />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

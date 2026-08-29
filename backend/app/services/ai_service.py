@@ -208,3 +208,50 @@ Devuelve la evaluación en JSON estricto.
         return EvaluationResultSchema(**data)
     else:
         raise Exception("Respuesta de evaluación vacía de Gemini AI")
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def generate_hint(question_prompt: str, question_type: str, correct_answer: str) -> str:
+    """
+    Genera una pista socrática de máximo 15 palabras para guiar al alumno
+    sin revelar la respuesta directamente ni usar sinónimos obvios.
+    """
+    if not API_KEY:
+        return "Reflexiona sobre el concepto principal del enunciado."
+
+    client = genai.Client(api_key=API_KEY)
+
+    prompt = f"""Eres un tutor socrático estricto. Tu única tarea es dar UNA SOLA pista breve (máximo 15 palabras) para ayudar al alumno a deducir la respuesta por sí mismo.
+
+REGLAS ABSOLUTAS:
+- Máximo 15 palabras. Si superas 15 palabras, fallaste.
+- NO menciones la respuesta correcta ni uses sinónimos directos de ella.
+- NO uses las palabras exactas del enunciado de la pregunta.
+- La pista debe invitar al razonamiento, no dar la solución.
+- Responde SOLO con la pista, sin comillas, sin prefijos como "Pista:" ni explicaciones.
+
+Pregunta: {question_prompt}
+Tipo: {question_type}
+Respuesta correcta (NO la reveles): {correct_answer}
+
+Pista socrática:"""
+
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.6,
+            max_output_tokens=60
+        )
+    )
+
+    if response.text:
+        hint = response.text.strip().strip('"').strip("'")
+        # Truncar si de algún modo excede las palabras
+        words = hint.split()
+        if len(words) > 18:
+            hint = " ".join(words[:15]) + "..."
+        return hint
+    else:
+        return "Piensa en el concepto fundamental que relaciona los elementos del enunciado."
+
