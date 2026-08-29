@@ -40,6 +40,12 @@ def run_migrations():
 run_migrations()
 Base.metadata.create_all(bind=engine)
 
+try:
+    from seed_admin import seed_database
+    seed_database()
+except Exception as e:
+    print(f"[AUTO-SEED ERROR] {e}")
+
 app = FastAPI(
     title="Aprende Jugando API",
     description="Backend educativo gamificado con FastAPI y SQLAlchemy",
@@ -47,17 +53,10 @@ app = FastAPI(
 )
 
 # Configuración de CORS para permitir frontend
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "*"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

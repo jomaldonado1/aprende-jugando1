@@ -41,7 +41,9 @@ export default function AuthPage() {
         await login(email, password);
       }
     } catch (err) {
-      if (err.response?.status === 400 && (err.response?.data?.detail?.includes('registrado') || err.response?.data?.detail?.includes('uso') || err.response?.data?.detail?.includes('correo'))) {
+      if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
+        setError('No se pudo conectar al servidor backend. Si estás en producción, verifica la variable VITE_API_URL.');
+      } else if (err.response?.status === 400 && (err.response?.data?.detail?.includes('registrado') || err.response?.data?.detail?.includes('uso') || err.response?.data?.detail?.includes('correo'))) {
         setError('Este correo ya está en uso, intenta iniciar sesión.');
       } else {
         setError(
@@ -64,7 +66,11 @@ export default function AuthPage() {
       setFetchedQuestion(res.data.secret_question);
       setViewMode('forgot_step2');
     } catch (err) {
-      setError(err.response?.data?.detail || 'No se pudo obtener la pregunta de seguridad.');
+      if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
+        setError('No se pudo conectar al servidor backend.');
+      } else {
+        setError(err.response?.data?.detail || 'No se pudo obtener la pregunta de seguridad.');
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +91,11 @@ export default function AuthPage() {
       setSuccessMsg(res.data.detail || '¡Contraseña actualizada exitosamente!');
       setViewMode('forgot_success');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al restablecer la contraseña.');
+      if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
+        setError('No se pudo conectar al servidor backend.');
+      } else {
+        setError(err.response?.data?.detail || 'Error al restablecer la contraseña.');
+      }
     } finally {
       setLoading(false);
     }
@@ -99,7 +109,11 @@ export default function AuthPage() {
     try {
       await login(demoEmail, demoPassword);
     } catch (err) {
-      setError('Error al iniciar sesión con cuenta demo.');
+      if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
+        setError('No se pudo conectar al servidor backend. Si estás en producción, verifica la variable VITE_API_URL.');
+      } else {
+        setError(err.response?.data?.detail || 'Error al iniciar sesión con cuenta demo.');
+      }
     } finally {
       setLoading(false);
     }
