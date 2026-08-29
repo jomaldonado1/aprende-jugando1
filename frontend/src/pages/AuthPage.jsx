@@ -26,12 +26,15 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [slowServer, setSlowServer] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
     setLoading(true);
+    setSlowServer(false);
+    const slowTimer = setTimeout(() => setSlowServer(true), 5000);
 
     try {
       if (viewMode === 'register') {
@@ -42,7 +45,7 @@ export default function AuthPage() {
       }
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
-        setError('No se pudo conectar al servidor backend. Si estás en producción, verifica la variable VITE_API_URL.');
+        setError('El servidor tardó demasiado en responder. Es normal la primera vez (el servidor gratuito se despierta en ~30-60s). Intenta de nuevo en un momento.');
       } else if (err.response?.status === 400 && (err.response?.data?.detail?.includes('registrado') || err.response?.data?.detail?.includes('uso') || err.response?.data?.detail?.includes('correo'))) {
         setError('Este correo ya está en uso, intenta iniciar sesión.');
       } else {
@@ -51,7 +54,9 @@ export default function AuthPage() {
         );
       }
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setSlowServer(false);
     }
   };
 
@@ -275,7 +280,13 @@ export default function AuthPage() {
                 className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {loading ? (
-                  <span>Cargando...</span>
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                    {slowServer ? '🌙 Despertando servidor... (30-60s)' : 'Verificando...'}
+                  </span>
                 ) : (
                   <>
                     <span>{viewMode === 'register' ? 'Crear Cuenta' : 'Entrar a la Plataforma'}</span>
