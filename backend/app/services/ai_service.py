@@ -11,7 +11,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
 dotenv_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 load_dotenv(dotenv_path=dotenv_path)
 
-API_KEY = os.getenv("GEMINI_API_KEY")
+def get_api_key() -> str:
+    key = os.getenv("GEMINI_API_KEY", "")
+    if key:
+        key = key.strip().strip('"').strip("'")
+    return key
 
 # Lista de modelos por orden de preferencia para redundancia y alta disponibilidad
 CANDIDATE_MODELS = [
@@ -70,6 +74,9 @@ def _generate_content_with_fallback(client: genai.Client, contents: str, config:
                 return response.text
         except Exception as e:
             last_exception = e
+            err_str = str(e)
+            if "401" in err_str or "UNAUTHENTICATED" in err_str:
+                raise RuntimeError("La clave GEMINI_API_KEY configurada en el servidor de Render es inválida o expiró (Error 401 UNAUTHENTICATED). Por favor actualiza la variable GEMINI_API_KEY en tu panel de Render.")
             print(f"[AI SERVICE WARN] Modelo {model_name} falló: {e}. Intentando modelo alternativo...")
             continue
 
@@ -81,10 +88,11 @@ def _generate_content_with_fallback(client: genai.Client, contents: str, config:
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5), reraise=True)
 def generate_study_game(title: str, content: str) -> StudyGameSchema:
-    if not API_KEY:
-        raise ValueError("GEMINI_API_KEY no se encuentra configurada en las variables de entorno")
+    api_key = get_api_key()
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY no se encuentra configurada en las variables de entorno de Render")
 
-    client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=api_key)
 
     prompt = f"""
 Eres un Diseñador Instruccional Senior y Experto en Gamificación Educativa.
@@ -130,7 +138,8 @@ def evaluate_batch_open_answers(items: List[dict]) -> List[SingleEvaluationItem]
     if not items:
         return []
 
-    if not API_KEY:
+    api_key = get_api_key()
+    if not api_key:
         results = []
         for item in items:
             exp = item.get("expected_answer", "").strip().lower()
@@ -144,7 +153,7 @@ def evaluate_batch_open_answers(items: List[dict]) -> List[SingleEvaluationItem]
             ))
         return results
 
-    client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=api_key)
 
     prompt = f"""
 Eres un Tutor Académico Inteligente y Evaluador Pedagógico.
@@ -181,7 +190,8 @@ def evaluate_open_answer(question_text: str, expected_answer: str, user_answer: 
     """
     Evalúa semánticamente una única respuesta en texto libre (función legado).
     """
-    if not API_KEY:
+    api_key = get_api_key()
+    if not api_key:
         is_match = expected_answer.strip().lower() in user_answer.strip().lower() or user_answer.strip().lower() in expected_answer.strip().lower()
         return EvaluationResultSchema(
             is_correct=is_match,
@@ -189,7 +199,7 @@ def evaluate_open_answer(question_text: str, expected_answer: str, user_answer: 
             feedback="Respuesta analizada por coincidencia sintáctica."
         )
 
-    client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=api_key)
 
     prompt = f"""
 Eres un Tutor Académico Inteligente y Evaluador Pedagógico.
@@ -225,10 +235,11 @@ def generate_hint(question_prompt: str, question_type: str, correct_answer: str)
     Genera una pista socrática de máximo 15 palabras para guiar al alumno
     sin revelar la respuesta directamente ni usar sinónimos obvios.
     """
-    if not API_KEY:
+    api_key = get_api_key()
+    if not api_key:
         return "Reflexiona sobre el concepto principal del enunciado."
 
-    client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=api_key)
 
     prompt = f"""Eres un tutor socrático estricto. Tu única tarea es dar UNA SOLA pista breve (máximo 15 palabras) para ayudar al alumno a deducir la respuesta por sí mismo.
 
