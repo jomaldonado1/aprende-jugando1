@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import List
 from google import genai
 from google.genai import types
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
 
 # Cargar variables de entorno desde .env
 dotenv_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
@@ -13,7 +13,13 @@ load_dotenv(dotenv_path=dotenv_path)
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-MODEL_NAME = "gemini-3.6-flash"
+# Lista de modelos por orden de preferencia para redundancia y alta disponibilidad
+CANDIDATE_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-1.5-flash"
+]
 
 class QuestionSchema(BaseModel):
     type: str = Field(description="Tipo de pregunta: 'multiple_choice', 'cloze', 'open_ended', 'examples', o 'trick_question'")
@@ -46,15 +52,41 @@ class BatchEvaluationResultSchema(BaseModel):
     evaluations: List[SingleEvaluationItem] = Field(description="Lista de evaluaciones de las preguntas del cuestionario")
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def _generate_content_with_fallback(client: genai.Client, contents: str, config: types.GenerateContentConfig) -> str:
+    """
+    Intenta invocar la API de Gemini iterando sobre varios modelos candidatos.
+    Si un modelo responde 503 UNAVAILABLE o 429 RESOURCE_EXHAUSTED, pasa automáticamente al siguiente modelo.
+    """
+    last_exception = None
+
+    for model_name in CANDIDATE_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=config
+            )
+            if response.text:
+                return response.text
+        except Exception as e:
+            last_exception = e
+            print(f"[AI SERVICE WARN] Modelo {model_name} falló: {e}. Intentando modelo alternativo...")
+            continue
+
+    err_str = str(last_exception) if last_exception else "Respuesta vacía"
+    if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
+        raise RuntimeError("Los servidores de IA están con alta demanda en este momento. Por favor reintenta en unos instantes.")
+    raise RuntimeError(f"Error al invocar la API de Gemini: {err_str}")
+
+
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5), reraise=True)
 def generate_study_game(title: str, content: str) -> StudyGameSchema:
     if not API_KEY:
-        raise ValueError("GEMINI_API_KEY no se encuentra configurada en el archivo .env")
+        raise ValueError("GEMINI_API_KEY no se encuentra configurada en las variables de entorno")
 
-    try:
-        client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=API_KEY)
 
-        prompt = f"""
+    prompt = f"""
 Eres un Diseñador Instruccional Senior y Experto en Gamificación Educativa.
 Analiza el siguiente apunte de estudio y genera un juego de lecciones estructurado en 5 NIVELES (Bloques) de dificultad progresiva.
 
@@ -76,35 +108,24 @@ REQUISITOS ESTRUCTURALES OBLIGATORIOS:
    - 'examples': Pregunta que exige identificar un ejemplo práctico o caso de uso real.
    - 'trick_question': Pregunta capciosa o trampa común que aclare un malentendido habitual.
 
-Devuelve la respuesta strictly formateada según el esquema JSON solicitado.
+Devuelve la respuesta estrictamente formateada según el esquema JSON solicitado.
 """
 
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=StudyGameSchema,
-                temperature=0.4
-            )
-        )
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=StudyGameSchema,
+        temperature=0.4
+    )
 
-        if response.text:
-            data = json.loads(response.text)
-            return StudyGameSchema(**data)
-        else:
-            raise Exception("Respuesta vacía recibida de Gemini AI")
-
-    except Exception as e:
-        print(f"[AI SERVICE ERROR] Error generando juego de estudio con {MODEL_NAME}: {e}")
-        raise RuntimeError(f"Error al invocar a Gemini API ({MODEL_NAME}): {e}")
+    response_text = _generate_content_with_fallback(client, prompt, config)
+    data = json.loads(response_text)
+    return StudyGameSchema(**data)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5), reraise=True)
 def evaluate_batch_open_answers(items: List[dict]) -> List[SingleEvaluationItem]:
     """
     Evalúa en UNA SOLA llamada API a Gemini todas las preguntas abiertas de un nivel.
-    Esto reduce en un 75% el número de peticiones HTTP, eliminando errores por saturación (HTTP 503 / 429).
     """
     if not items:
         return []
@@ -143,25 +164,19 @@ INSTRUCCIONES DE EVALUACIÓN SEMÁNTICA BATCH:
 Devuelve la evaluación del lote en JSON estricto respetando el esquema.
 """
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=BatchEvaluationResultSchema,
-            temperature=0.2
-        )
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=BatchEvaluationResultSchema,
+        temperature=0.2
     )
 
-    if response.text:
-        data = json.loads(response.text)
-        batch_res = BatchEvaluationResultSchema(**data)
-        return batch_res.evaluations
-    else:
-        raise Exception("Respuesta de evaluación batch vacía de Gemini AI")
+    response_text = _generate_content_with_fallback(client, prompt, config)
+    data = json.loads(response_text)
+    batch_res = BatchEvaluationResultSchema(**data)
+    return batch_res.evaluations
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5), reraise=True)
 def evaluate_open_answer(question_text: str, expected_answer: str, user_answer: str) -> EvaluationResultSchema:
     """
     Evalúa semánticamente una única respuesta en texto libre (función legado).
@@ -187,30 +202,24 @@ Respuesta del Estudiante: {user_answer}
 INSTRUCCIONES DE EVALUACIÓN SEMÁNTICA:
 1. Evalúa el SIGNIFICADO Y COMPRENSIÓN CONCEPTUAL, no la redacción exacta ni errores menores de tipeo u ortografía.
 2. `is_correct` debe ser TRUE si el estudiante demuestra haber entendido la idea principal o palabras clave fundamentales, o FALSE si su respuesta es incorrecta o vaga.
-3. `score` debe ser un número flotante entre 0.0 y 100.0 (ej. 100 para excelente, 75 para aceptable, 0 para incorrecto).
+3. `score` debe ser un número flotante entre 0.0 y 100.0.
 4. `feedback` debe ser una explicación pedagógica muy breve (1 o 2 oraciones) y motivadora sobre la respuesta dada. IMPORTANTE: NO incluyas ni reveles la respuesta esperada literal en el campo feedback.
 
 Devuelve la evaluación en JSON estricto.
 """
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=EvaluationResultSchema,
-            temperature=0.2
-        )
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=EvaluationResultSchema,
+        temperature=0.2
     )
 
-    if response.text:
-        data = json.loads(response.text)
-        return EvaluationResultSchema(**data)
-    else:
-        raise Exception("Respuesta de evaluación vacía de Gemini AI")
+    response_text = _generate_content_with_fallback(client, prompt, config)
+    data = json.loads(response_text)
+    return EvaluationResultSchema(**data)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5), reraise=True)
 def generate_hint(question_prompt: str, question_type: str, correct_answer: str) -> str:
     """
     Genera una pista socrática de máximo 15 palabras para guiar al alumno
@@ -236,22 +245,14 @@ Respuesta correcta (NO la reveles): {correct_answer}
 
 Pista socrática:"""
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.6,
-            max_output_tokens=60
-        )
+    config = types.GenerateContentConfig(
+        temperature=0.6,
+        max_output_tokens=60
     )
 
-    if response.text:
-        hint = response.text.strip().strip('"').strip("'")
-        # Truncar si de algún modo excede las palabras
-        words = hint.split()
-        if len(words) > 18:
-            hint = " ".join(words[:15]) + "..."
-        return hint
-    else:
-        return "Piensa en el concepto fundamental que relaciona los elementos del enunciado."
-
+    response_text = _generate_content_with_fallback(client, prompt, config)
+    hint = response_text.strip().strip('"').strip("'")
+    words = hint.split()
+    if len(words) > 18:
+        hint = " ".join(words[:15]) + "..."
+    return hint

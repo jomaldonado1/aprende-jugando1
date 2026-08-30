@@ -222,10 +222,14 @@ def generate_note_with_ai(
         raise
     except Exception as e:
         db.rollback()
+        err_text = str(e)
+        if "RetryError" in err_text or "UNAVAILABLE" in err_text or "503" in err_text or "429" in err_text:
+            err_text = "Los servidores de IA están con alta demanda en este momento. Por favor intenta nuevamente en unos instantes."
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al generar juego de estudio con IA: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Error al generar juego de estudio con IA: {err_text}"
         )
+
 
 
 @router.get("/notes/{note_id}/blocks", response_model=List[schemas.BlockOut])
