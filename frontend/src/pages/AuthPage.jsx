@@ -441,16 +441,7 @@ export default function AuthPage() {
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 Acceso Rápido Demo
               </p>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('admin@test.com', 'admin123')}
-                  className="w-full py-2.5 px-3 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-500/40 rounded-xl text-indigo-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-                >
-                  <User className="w-4 h-4 text-amber-400" />
-                  Administrador Demo (admin@test.com)
-                </button>
-
+              <div>
                 <button
                   type="button"
                   onClick={() => handleQuickLogin('estudiante@test.com', 'estudiante123')}
