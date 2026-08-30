@@ -179,3 +179,19 @@ def update_question(
     db.commit()
     db.refresh(question)
     return question
+
+
+@router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(
+    note_id: int,
+    admin_user: models.User = Depends(security.require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Juego/Apunte no encontrado.")
+    
+    db.delete(note)
+    db.commit()
+    return None
+

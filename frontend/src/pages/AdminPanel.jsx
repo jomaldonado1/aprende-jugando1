@@ -4,7 +4,7 @@ import api from '../api/axios';
 import { 
   ShieldCheck, Users, BookOpen, Trophy, CheckCircle, 
   LogOut, Sparkles, Activity, Edit3, Search, X, Save, 
-  AlertTriangle, RefreshCw, FileText, Globe, Plus, UploadCloud, Send
+  AlertTriangle, RefreshCw, FileText, Globe, Plus, UploadCloud, Send, Trash2
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -96,6 +96,19 @@ export default function AdminPanel() {
       );
     } catch (err) {
       alert(err.response?.data?.detail || 'Error al cambiar la visibilidad del juego');
+    }
+  };
+
+  const handleDeleteNote = async (noteId, noteTitle) => {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente el tema "${noteTitle}"?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/api/admin/notes/${noteId}`);
+      setNotesList((prev) => prev.filter((n) => n.id !== noteId));
+      await fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al eliminar el tema');
     }
   };
 
@@ -577,17 +590,27 @@ export default function AdminPanel() {
                               <td className="p-3 text-center font-mono font-bold text-emerald-400">{n.blocks_count} Niveles</td>
                               <td className="p-3 text-slate-400 text-[11px]">{formatDate(n.created_at)}</td>
                               <td className="p-3 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleFree(n.id)}
-                                  className={`py-1.5 px-3 font-bold rounded-xl border text-xs flex items-center gap-1.5 ml-auto transition-all cursor-pointer ${
-                                    n.is_free
-                                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                                      : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
-                                  }`}
-                                >
-                                  {n.is_free ? '🔒 Hacer Privado' : '⭐ Marcar Gratuito'}
-                                </button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleFree(n.id)}
+                                    className={`py-1.5 px-3 font-bold rounded-xl border text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      n.is_free
+                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                                        : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
+                                    }`}
+                                  >
+                                    {n.is_free ? '🔒 Hacer Privado' : '⭐ Marcar Gratuito'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteNote(n.id, n.title)}
+                                    className="py-1.5 px-3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold rounded-xl border border-rose-500/30 text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Eliminar
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))

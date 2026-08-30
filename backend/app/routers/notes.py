@@ -79,10 +79,7 @@ def _ensure_demo_notes(db: Session):
                 )
                 db.add_all([q1, q2, q3, q4, q5])
                 db.commit()
-        else:
-            if not existing.is_free:
-                existing.is_free = True
-                db.commit()
+
 
 
 @router.get("/notes", response_model=List[schemas.NoteOut])
