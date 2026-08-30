@@ -17,6 +17,17 @@ def get_api_key() -> str:
         key = key.strip().strip('"').strip("'")
     return key
 
+def _get_client(api_key: str) -> genai.Client:
+    """
+    Crea el cliente de Gemini asegurando que la clave de API (tanto formato AIza... como AQ.Ab8...)
+    se pase explícitamente en el encabezado x-goog-api-key para evitar errores 401 UNAUTHENTICATED.
+    """
+    return genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(headers={"x-goog-api-key": api_key})
+    )
+
+
 # Lista de modelos por orden de preferencia para redundancia y alta disponibilidad
 CANDIDATE_MODELS = [
     "gemini-3.6-flash",
@@ -92,7 +103,7 @@ def generate_study_game(title: str, content: str) -> StudyGameSchema:
     if not api_key:
         raise ValueError("GEMINI_API_KEY no se encuentra configurada en las variables de entorno de Render")
 
-    client = genai.Client(api_key=api_key)
+    client = _get_client(api_key)
 
     prompt = f"""
 Eres un Diseñador Instruccional Senior y Experto en Gamificación Educativa.
@@ -153,7 +164,7 @@ def evaluate_batch_open_answers(items: List[dict]) -> List[SingleEvaluationItem]
             ))
         return results
 
-    client = genai.Client(api_key=api_key)
+    client = _get_client(api_key)
 
     prompt = f"""
 Eres un Tutor Académico Inteligente y Evaluador Pedagógico.
@@ -199,7 +210,7 @@ def evaluate_open_answer(question_text: str, expected_answer: str, user_answer: 
             feedback="Respuesta analizada por coincidencia sintáctica."
         )
 
-    client = genai.Client(api_key=api_key)
+    client = _get_client(api_key)
 
     prompt = f"""
 Eres un Tutor Académico Inteligente y Evaluador Pedagógico.
@@ -239,7 +250,7 @@ def generate_hint(question_prompt: str, question_type: str, correct_answer: str)
     if not api_key:
         return "Reflexiona sobre el concepto principal del enunciado."
 
-    client = genai.Client(api_key=api_key)
+    client = _get_client(api_key)
 
     prompt = f"""Eres un tutor socrático estricto. Tu única tarea es dar UNA SOLA pista breve (máximo 15 palabras) para ayudar al alumno a deducir la respuesta por sí mismo.
 
