@@ -23,7 +23,7 @@ def seed_database():
     try:
         print("[SEED] Iniciando siembra de base de datos...")
 
-        # 1. Crear usuario Administrador
+        # 1. Crear / Asegurar usuario Administrador
         admin_email = "admin@test.com"
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
@@ -33,13 +33,14 @@ def seed_database():
                 role="admin"
             )
             db.add(admin)
-            db.commit()
-            db.refresh(admin)
-            print(f"[SUCCESS] Usuario Admin creado: {admin_email} / admin123")
         else:
-            print(f"[INFO] El usuario Admin {admin_email} ya existe.")
+            admin.hashed_password = get_password_hash("admin123")
+            admin.role = "admin"
+        db.commit()
+        db.refresh(admin)
+        print(f"[SUCCESS] Usuario Admin asegurado: {admin_email} / admin123")
 
-        # 2. Crear usuario Estudiante de prueba
+        # 2. Crear / Asegurar usuario Estudiante de prueba
         student_email = "estudiante@test.com"
         student = db.query(User).filter(User.email == student_email).first()
         if not student:
@@ -49,11 +50,11 @@ def seed_database():
                 role="estudiante"
             )
             db.add(student)
-            db.commit()
-            db.refresh(student)
-            print(f"[SUCCESS] Usuario Estudiante creado: {student_email} / estudiante123")
         else:
-            print(f"[INFO] El usuario Estudiante {student_email} ya existe.")
+            student.hashed_password = get_password_hash("estudiante123")
+        db.commit()
+        db.refresh(student)
+        print(f"[SUCCESS] Usuario Estudiante asegurado: {student_email} / estudiante123")
 
         # 3. Crear Apunte Demo de estudio gamificado
         note = db.query(Note).filter(Note.title == "Fundamentos de Programación").first()

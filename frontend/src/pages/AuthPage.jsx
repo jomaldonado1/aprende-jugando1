@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { 
   Gamepad2, User, Lock, Mail, ArrowRight, Sparkles, 
-  HelpCircle, KeyRound, CheckCircle, AlertTriangle, ArrowLeft
+  HelpCircle, KeyRound, CheckCircle, AlertTriangle, ArrowLeft,
+  Eye, EyeOff
 } from 'lucide-react';
 
 export default function AuthPage() {
@@ -13,6 +14,7 @@ export default function AuthPage() {
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [secretQuestion, setSecretQuestion] = useState('¿Nombre de tu primera mascota?');
   const [customQuestion, setCustomQuestion] = useState('');
   const [secretAnswer, setSecretAnswer] = useState('');
@@ -212,13 +214,21 @@ export default function AuthPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-2.5 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                    title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -431,7 +441,16 @@ export default function AuthPage() {
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 Acceso Rápido Demo
               </p>
-              <div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('admin@test.com', 'admin123')}
+                  className="w-full py-2.5 px-3 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-500/40 rounded-xl text-indigo-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+                >
+                  <User className="w-4 h-4 text-amber-400" />
+                  Administrador Demo (admin@test.com)
+                </button>
+
                 <button
                   type="button"
                   onClick={() => handleQuickLogin('estudiante@test.com', 'estudiante123')}

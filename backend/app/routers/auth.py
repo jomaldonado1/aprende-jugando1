@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app import models, schemas, security
 
@@ -8,7 +9,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(models.User).filter(models.User.email == user_in.email).first()
+    clean_email = user_in.email.strip().lower()
+    existing_user = db.query(models.User).filter(func.lower(models.User.email) == clean_email).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -20,7 +22,7 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     secret_a = user_in.secret_answer.strip().lower() if user_in.secret_answer else None
 
     new_user = models.User(
-        email=user_in.email,
+        email=clean_email,
         hashed_password=hashed_pwd,
         role="estudiante",
         secret_question=secret_q,
@@ -34,7 +36,7 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/security-question/{email}")
 def get_security_question(email: str, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == email.strip().lower()).first()
+    user = db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -55,7 +57,7 @@ def get_security_question(email: str, db: Session = Depends(get_db)):
 
 @router.post("/reset-password")
 def reset_password(req: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == req.email.strip().lower()).first()
+    user = db.query(models.User).filter(func.lower(models.User.email) == req.email.strip().lower()).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -83,13 +85,15 @@ def reset_password(req: schemas.ResetPasswordRequest, db: Session = Depends(get_
 
 @router.post("/login", response_model=schemas.Token)
 def login_user(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
+    clean_email = user_credentials.email.strip().lower()
+    user = db.query(models.User).filter(func.lower(models.User.email) == clean_email).first()
     if not user or not security.verify_password(user_credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     
     access_token = security.create_access_token(
         data={"sub": user.email, "role": user.role, "user_id": user.id}
