@@ -24,9 +24,12 @@ def _generate_code(db: Session, length: int = 6) -> str:
     raise RuntimeError("No se pudo generar un código único para el duelo.")
 
 
+import os
+
 def _build_match_out(match: models.MatchSession, base_url: str, db: Session) -> schemas.MatchOut:
     note = db.query(models.Note).filter(models.Note.id == match.note_id).first()
     creator = db.query(models.User).filter(models.User.id == match.creator_user_id).first()
+    frontend_url = os.getenv("FRONTEND_URL", "https://aprende-jugando1.vercel.app")
     return schemas.MatchOut(
         id=match.id,
         share_code=match.share_code,
@@ -34,7 +37,7 @@ def _build_match_out(match: models.MatchSession, base_url: str, db: Session) -> 
         note_title=note.title if note else "Tema desconocido",
         creator_email=creator.email if creator else "desconocido",
         created_at=match.created_at,
-        share_link=f"{base_url}/duel/{match.share_code}"
+        share_link=f"{frontend_url}/duel/{match.share_code}"
     )
 
 

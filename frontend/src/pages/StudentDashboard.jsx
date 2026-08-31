@@ -13,7 +13,7 @@ import {
   Swords, Medal
 } from 'lucide-react';
 
-export default function StudentDashboard() {
+export default function StudentDashboard({ initialDuelCode }) {
   const { user, logout } = useAuth();
   const [notes, setNotes] = useState([]);
   const [attempts, setAttempts] = useState([]);
@@ -28,6 +28,12 @@ export default function StudentDashboard() {
   // Duel modal
   const [duelNote, setDuelNote] = useState(null);
   const [duelResult, setDuelResult] = useState(null);
+
+  useEffect(() => {
+    if (initialDuelCode) {
+      setDuelNote({ id: null, title: 'Duelo por enlace', share_code: initialDuelCode });
+    }
+  }, [initialDuelCode]);
 
   // AI Generator Form States
   const [showAddNote, setShowAddNote] = useState(false);
@@ -722,6 +728,7 @@ export default function StudentDashboard() {
               />
             ) : (
               <DuelLobbyView
+                initialCode={duelNote.share_code || initialDuelCode}
                 noteId={duelNote.id}
                 noteTitle={duelNote.title}
                 onBack={() => setDuelNote(null)}

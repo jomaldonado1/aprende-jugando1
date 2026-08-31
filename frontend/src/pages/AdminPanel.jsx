@@ -511,6 +511,7 @@ export default function AdminPanel() {
                           <th className="p-3">ID</th>
                           <th className="p-3">Correo Electrónico</th>
                           <th className="p-3">Rol</th>
+                          <th className="p-3">Plan</th>
                           <th className="p-3 text-center">Apuntes Generados</th>
                           <th className="p-3 text-center">Intentos Jugados</th>
                         </tr>
@@ -518,7 +519,7 @@ export default function AdminPanel() {
                       <tbody className="divide-y divide-slate-800/60 text-slate-300">
                         {usersList.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="p-8 text-center text-slate-500">No hay usuarios registrados.</td>
+                            <td colSpan={6} className="p-8 text-center text-slate-500">No hay usuarios registrados.</td>
                           </tr>
                         ) : (
                           usersList.map((u) => (
@@ -533,6 +534,16 @@ export default function AdminPanel() {
                                 }`}>
                                   {u.role}
                                 </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${u.plan_type === 'premium' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                                    {u.plan_type ? u.plan_type.toUpperCase() : 'FREE'}
+                                  </span>
+                                  {u.role !== 'admin' && (
+                                    <button onClick={() => handleUpdateUserPlan(u.id, u.plan_type === 'free' ? 'premium' : 'free')} className="text-[10px] text-indigo-400 hover:text-indigo-300 underline">Cambiar</button>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3 text-center font-mono">{u.notes_count}</td>
                               <td className="p-3 text-center font-mono">{u.attempts_count}</td>

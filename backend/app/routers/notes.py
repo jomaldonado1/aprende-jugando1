@@ -5,10 +5,18 @@ import json
 import io
 import pypdf
 import docx
+import unicodedata
 
 from app.database import get_db
 from app import models, schemas, security
 from app.services.ai_service import generate_study_game, evaluate_open_answer, evaluate_batch_open_answers
+
+def normalize_text(text: str) -> str:
+    if not text:
+        return ""
+    nfkd_form = unicodedata.normalize('NFKD', text)
+    without_accents = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+    return without_accents.strip().lower()
 
 router = APIRouter(prefix="/api", tags=["notes"])
 
@@ -272,7 +280,7 @@ def submit_quiz(
             user_text = answer.selected_option.strip()
 
             if q.type == "multiple_choice":
-                is_match = user_text.lower() == q.correct_answer.strip().lower()
+                is_match = normalize_text(user_text) == normalize_text(q.correct_answer)
                 q_score = 100.0 if is_match else 0.0
                 feedback = "¡Respuesta Correcta!" if is_match else "Respuesta incorrecta. Revisa los conceptos del nivel e inténtalo de nuevo."
                 
@@ -288,8 +296,8 @@ def submit_quiz(
                 )
                 total_score += q_score
             elif q.type == "cloze":
-                exp_clean = q.correct_answer.strip().lower()
-                usr_clean = user_text.strip().lower()
+                exp_clean = normalize_text(q.correct_answer)
+                usr_clean = normalize_text(user_text)
                 is_match = (usr_clean == exp_clean) or (len(usr_clean) > 2 and usr_clean in exp_clean) or (len(exp_clean) > 2 and exp_clean in usr_clean)
                 q_score = 100.0 if is_match else 0.0
                 feedback = "¡Completado correctamente!" if is_match else f"No coincide exactamente. La palabra clave esperada era similar a '{q.correct_answer}'."

@@ -168,9 +168,57 @@ export default function QuizWizard({ block, noteId, onClose, onComplete }) {
     }
   };
 
+function normalizeText(text) {
+  if (!text) return '';
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
   const handleSubmit = async (finalScores) => {
     setSubmitting(true);
     setEvalError(null);
+
+    // Modo Duelo (sin block_id en la BD)
+    if (!block.id) {
+      const details = [];
+      let totalCorrect = 0;
+      for (const s of finalScores) {
+        const q = questions.find(item => item.id === s.questionId);
+        const usr = s.answer || '';
+        const exp = q ? q.correct_answer || '' : '';
+        const normUsr = normalizeText(usr);
+        const normExp = normalizeText(exp);
+        const isMatch = normUsr === normExp || (normUsr.length > 2 && normExp.includes(normUsr)) || (normExp.length > 2 && normUsr.includes(normExp));
+        if (isMatch) totalCorrect += 1;
+        details.push({
+          question_id: s.questionId,
+          type: q ? q.type : 'multiple_choice',
+          prompt: q ? q.prompt : '',
+          user_answer: usr,
+          expected_answer: exp,
+          is_correct: isMatch,
+          score: isMatch ? 100 : 0,
+          feedback: isMatch ? '¡Respuesta correcta!' : 'Respuesta registrada en el duelo.'
+        });
+      }
+
+      const scorePercent = Math.round((totalCorrect / (questions.length || 1)) * 100);
+      const enriched = {
+        score: scorePercent,
+        is_passed: scorePercent >= 60,
+        details,
+        time_bonuses: finalScores.reduce((acc, s) => { acc[s.questionId] = s.timeBonus || 0; return acc; }, {}),
+        total_time_bonus: finalScores.reduce((acc, s) => acc + (s.timeBonus || 0), 0)
+      };
+
+      setResult(enriched);
+      if (onComplete) onComplete(enriched);
+      setSubmitting(false);
+      return;
+    }
 
     const payload = {
       block_id: block.id,
@@ -182,7 +230,6 @@ export default function QuizWizard({ block, noteId, onClose, onComplete }) {
 
     try {
       const res = await api.post('/api/quiz/submit', payload);
-      // Enriquecer con bonificaciones de tiempo
       const enriched = {
         ...res.data,
         time_bonuses: finalScores.reduce((acc, s) => {

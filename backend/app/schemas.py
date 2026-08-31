@@ -118,10 +118,16 @@ class AttemptOut(BaseModel):
         from_attributes = True
 
 # Admin Detail Schemas
+class UserPlanUpdate(BaseModel):
+    plan_type: str
+    credits: int = 100
+
 class AdminUserDetail(BaseModel):
     id: int
     email: str
     role: str
+    plan_type: str = "free"
+    credits: int = 0
     notes_count: int = 0
     attempts_count: int = 0
 

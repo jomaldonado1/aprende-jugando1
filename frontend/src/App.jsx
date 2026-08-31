@@ -21,6 +21,10 @@ function MainRouter() {
   const { user, loading } = useAuth();
   useKeepAlive();
 
+  const path = window.location.pathname;
+  const matchDuel = path.match(/\/duel\/([A-Za-z0-9]+)/);
+  const initialDuelCode = matchDuel ? matchDuel[1].toUpperCase() : null;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
@@ -40,7 +44,7 @@ function MainRouter() {
     return <AdminPanel />;
   }
 
-  return <StudentDashboard />;
+  return <StudentDashboard initialDuelCode={initialDuelCode} />;
 }
 
 export default function App() {

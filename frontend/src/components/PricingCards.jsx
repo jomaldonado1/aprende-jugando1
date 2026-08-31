@@ -1,22 +1,58 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Check, Zap, Crown, ShieldAlert, CreditCard } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { X, Sparkles, Check, Zap, Crown, ShieldAlert, CreditCard, MessageSquare, Building } from 'lucide-react';
 
 export default function PricingCards({ onClose }) {
-  const [toastMessage, setToastMessage] = useState('');
+  const { user } = useAuth();
+  const [selectedPlanForTransfer, setSelectedPlanForTransfer] = useState(null);
 
-  const handleBuy = (planName) => {
-    setToastMessage(`Integración con pasarela de pagos en desarrollo (${planName}).`);
-    setTimeout(() => setToastMessage(''), 4000);
+  const handleWhatsAppTransfer = (planName) => {
+    const email = user?.email || 'mi usuario';
+    const text = encodeURIComponent(`Hola! Quiero abonar el ${planName} para mi usuario: ${email}. ¿Me pasas los datos para transferencia?`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleMercadoPago = (planName, link) => {
+    window.open(link || 'https://www.mercadopago.com.ar', '_blank');
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       
-      {/* Toast Alert Notice */}
-      {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 bg-slate-900 border border-amber-500/50 text-amber-300 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
-          <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
-          <span className="text-xs font-bold">{toastMessage}</span>
+      {/* Modal Transfer Details */}
+      {selectedPlanForTransfer && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="glass-panel max-w-md w-full rounded-3xl p-6 border border-emerald-500/40 space-y-4 relative text-center">
+            <button
+              onClick={() => setSelectedPlanForTransfer(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
+              <Building className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-xl font-black text-white">Pago por Transferencia</h3>
+            <p className="text-xs text-slate-400">
+              Transferí el monto del <strong className="text-emerald-400">{selectedPlanForTransfer}</strong> a nuestros datos bancarios y envíanos el comprobante por WhatsApp para la activación inmediata:
+            </p>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-left text-xs space-y-2 font-mono">
+              <p className="text-slate-400"><span className="text-slate-500">ALIAS:</span> <strong className="text-emerald-300">aprende.jugando.mp</strong></p>
+              <p className="text-slate-400"><span className="text-slate-500">CBU / CVU:</span> <strong className="text-emerald-300">0000003100012345678901</strong></p>
+              <p className="text-slate-400"><span className="text-slate-500">TITULAR:</span> <strong className="text-white">Aprende Jugando IA</strong></p>
+            </div>
+
+            <button
+              onClick={() => handleWhatsAppTransfer(selectedPlanForTransfer)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Enviar Comprobante por WhatsApp
+            </button>
+          </div>
         </div>
       )}
 
@@ -40,7 +76,7 @@ export default function PricingCards({ onClose }) {
             Desbloquea el poder completo de la <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">IA Educativa</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-2">
-            Pasa de las demos gratuitas a generar juegos de estudio ilimitados para tus materias con cualquier archivo o tema.
+            Elige Mercado Pago o Transferencia Bancaria para activar tu plan al instante.
           </p>
         </div>
 
@@ -80,20 +116,25 @@ export default function PricingCards({ onClose }) {
                   <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Feedback semántico con IA</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Acceso a las 3 Demos Gratuita</span>
-                </li>
               </ul>
             </div>
 
-            <button
-              onClick={() => handleBuy('Plan Base')}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <CreditCard className="w-4 h-4 text-blue-400" />
-              Comprar Plan Base
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleMercadoPago('Plan Base', 'https://mpago.la/pos/base')}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                Pagar con Mercado Pago
+              </button>
+              <button
+                onClick={() => setSelectedPlanForTransfer('Plan Base ($4.99)')}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Building className="w-4 h-4 text-emerald-400" />
+                Transferencia / WhatsApp
+              </button>
+            </div>
           </div>
 
           {/* CARD 2: PLAN PRO (FEATURED) */}
@@ -133,20 +174,25 @@ export default function PricingCards({ onClose }) {
                   <Check className="w-4 h-4 text-purple-400 shrink-0" />
                   <span>Historial guardado & análisis de avance</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-purple-400 shrink-0" />
-                  <span>Soporte técnico prioritario</span>
-                </li>
               </ul>
             </div>
 
-            <button
-              onClick={() => handleBuy('Plan Pro')}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-purple-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <CreditCard className="w-4 h-4" />
-              Comprar Plan Pro
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleMercadoPago('Plan Pro', 'https://mpago.la/pos/pro')}
+                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-purple-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                Pagar con Mercado Pago
+              </button>
+              <button
+                onClick={() => setSelectedPlanForTransfer('Plan Pro ($9.99)')}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Building className="w-4 h-4 text-emerald-400" />
+                Transferencia / WhatsApp
+              </button>
+            </div>
           </div>
 
           {/* CARD 3: PLAN MASTER */}
@@ -182,20 +228,25 @@ export default function PricingCards({ onClose }) {
                   <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Links públicos multijugador</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Exportación masiva de cuestionarios</span>
-                </li>
               </ul>
             </div>
 
-            <button
-              onClick={() => handleBuy('Plan Master')}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <CreditCard className="w-4 h-4 text-amber-400" />
-              Comprar Plan Master
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleMercadoPago('Plan Master', 'https://mpago.la/pos/master')}
+                className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                Pagar con Mercado Pago
+              </button>
+              <button
+                onClick={() => setSelectedPlanForTransfer('Plan Master ($19.99)')}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Building className="w-4 h-4 text-emerald-400" />
+                Transferencia / WhatsApp
+              </button>
+            </div>
           </div>
 
         </div>

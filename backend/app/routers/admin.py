@@ -14,7 +14,7 @@ def get_all_users_detail(
     admin_user: models.User = Depends(security.require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    users = db.query(models.User).all()
+    users = db.query(models.User).order_by(models.User.id.desc()).all()
     result = []
     for u in users:
         notes_count = len(u.notes) if u.notes else 0
@@ -23,10 +23,42 @@ def get_all_users_detail(
             id=u.id,
             email=u.email,
             role=u.role,
+            plan_type=u.plan_type or "free",
+            credits=u.credits if u.credits is not None else 0,
             notes_count=notes_count,
             attempts_count=attempts_count
         ))
     return result
+
+
+@router.put("/users/{user_id}/plan", response_model=schemas.AdminUserDetail)
+def update_user_plan(
+    user_id: int,
+    plan_in: schemas.UserPlanUpdate,
+    admin_user: models.User = Depends(security.require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    target_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    target_user.plan_type = plan_in.plan_type
+    target_user.credits = plan_in.credits
+    db.commit()
+    db.refresh(target_user)
+
+    notes_count = len(target_user.notes) if target_user.notes else 0
+    attempts_count = len(target_user.attempts) if target_user.attempts else 0
+
+    return schemas.AdminUserDetail(
+        id=target_user.id,
+        email=target_user.email,
+        role=target_user.role,
+        plan_type=target_user.plan_type,
+        credits=target_user.credits,
+        notes_count=notes_count,
+        attempts_count=attempts_count
+    )
 
 
 @router.get("/notes", response_model=List[schemas.AdminNoteDetail])
