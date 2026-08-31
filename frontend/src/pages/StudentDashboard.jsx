@@ -633,29 +633,62 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {generating ? (
-                <div className="py-4 text-center space-y-3 bg-slate-900/90 rounded-2xl border border-indigo-500/30">
-                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-xs font-bold text-indigo-300 animate-pulse">{generateStep}</p>
-                </div>
-              ) : (
                 <button
                   type="submit"
                   disabled={
-                    createMode === 'notes'
+                    generating || (createMode === 'notes'
                       ? extractingFile || !newTitle.trim() || !newContent.trim()
-                      : !topicQuery.trim()
+                      : !topicQuery.trim())
                   }
                   className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
                 >
                   <Send className="w-4 h-4" />
                   Generar Juego de Estudio
                 </button>
-              )}
             </form>
           </div>
         </div>
       )}
+
+      {/* POPUP DINÁMICO ENTRETENIDO DE GENERACIÓN CON GEMINI AI */}
+      {generating && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="glass-panel max-w-md w-full rounded-3xl p-8 border border-indigo-500/40 text-center space-y-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute -top-12 -left-12 w-36 h-36 bg-indigo-500/25 rounded-full blur-3xl pointer-events-none animate-pulse" />
+            <div className="absolute -bottom-12 -right-12 w-36 h-36 bg-purple-500/25 rounded-full blur-3xl pointer-events-none animate-pulse" />
+
+            <div className="relative z-10 space-y-6">
+              <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 border-r-purple-500 animate-spin" style={{ animationDuration: '2s' }} />
+                <div className="absolute inset-2 rounded-full border-4 border-purple-500/20 border-b-purple-400 animate-spin" style={{ animationDuration: '3s', animationDirection: 'reverse' }} />
+                <Sparkles className="w-10 h-10 text-amber-400 animate-bounce" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-white tracking-tight">Diseñando tu Juego de Estudio</h3>
+                <p className="text-sm font-bold text-indigo-300 animate-pulse px-2 leading-relaxed min-h-[44px] flex items-center justify-center">
+                  ✨ {generateStep || 'Invocando a Gemini AI...'}
+                </p>
+              </div>
+
+              <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                  <span>5 Niveles Progresivos</span>
+                  <span className="text-purple-400">25 Preguntas</span>
+                </div>
+                <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                  <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-400 h-full rounded-full animate-pulse" style={{ width: '85%' }} />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400 italic">
+                🧠 Estructurando: Opción Múltiple, Completar, Desarrollo Conceptual, Ejemplo Práctico y Pregunta Capciosa.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE SUSCRIPCIONES Y PRICING SAAS */}
       {showPricingModal && (
         <PricingCards onClose={() => setShowPricingModal(false)} />
