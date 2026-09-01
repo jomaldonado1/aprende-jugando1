@@ -45,6 +45,35 @@ export default function AdminPanel() {
   const [extractingFile, setExtractingFile] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Modal para Cambiar Plan de Usuario
+  const [editingUserPlan, setEditingUserPlan] = useState(null);
+  const [targetPlan, setTargetPlan] = useState('pro');
+  const [targetCredits, setTargetCredits] = useState(999);
+  const [savingPlan, setSavingPlan] = useState(false);
+
+  const handleSaveUserPlan = async (e) => {
+    e.preventDefault();
+    if (!editingUserPlan) return;
+
+    setSavingPlan(true);
+    try {
+      const res = await api.put(`/api/admin/users/${editingUserPlan.id}/plan`, {
+        plan_type: targetPlan,
+        credits: parseInt(targetCredits) || (targetPlan === 'free' ? 5 : 999)
+      });
+
+      setUsersList((prev) =>
+        prev.map((u) => (u.id === editingUserPlan.id ? res.data : u))
+      );
+      setEditingUserPlan(null);
+      alert(`¡Plan de ${res.data.email} actualizado exitosamente a ${targetPlan.toUpperCase()}!`);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al actualizar el plan del usuario');
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
   const fetchStats = async () => {
     try {
       const res = await api.get('/api/admin/stats');
@@ -537,11 +566,28 @@ export default function AdminPanel() {
                               </td>
                               <td className="p-3">
                                 <div className="flex items-center gap-2">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${u.plan_type === 'premium' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border ${
+                                    u.plan_type === 'premium'
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                      : u.plan_type === 'pro'
+                                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                                  }`}>
                                     {u.plan_type ? u.plan_type.toUpperCase() : 'FREE'}
                                   </span>
                                   {u.role !== 'admin' && (
-                                    <button onClick={() => handleUpdateUserPlan(u.id, u.plan_type === 'free' ? 'premium' : 'free')} className="text-[10px] text-indigo-400 hover:text-indigo-300 underline">Cambiar</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingUserPlan(u);
+                                        setTargetPlan(u.plan_type === 'free' ? 'pro' : u.plan_type === 'pro' ? 'premium' : 'free');
+                                        setTargetCredits(u.plan_type === 'free' ? 999 : 5);
+                                      }}
+                                      className="py-1 px-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-[10px] font-bold rounded-lg border border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Zap className="w-3 h-3 text-indigo-400" />
+                                      Cambiar
+                                    </button>
                                   )}
                                 </div>
                               </td>
@@ -993,6 +1039,77 @@ export default function AdminPanel() {
                 🧠 Estructurando: Opción Múltiple, Completar, Desarrollo Conceptual, Ejemplo Práctico y Pregunta Capciosa.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CAMBIAR PLAN DE USUARIO */}
+      {editingUserPlan && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel max-w-md w-full rounded-3xl p-6 border border-indigo-500/40 space-y-5 relative">
+            <button
+              onClick={() => setEditingUserPlan(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-xl font-bold text-white">Cambiar Plan de Usuario</h3>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Usuario: <strong className="text-white font-mono">{editingUserPlan.email}</strong>
+            </p>
+
+            <form onSubmit={handleSaveUserPlan} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">Seleccionar Plan</label>
+                <select
+                  value={targetPlan}
+                  onChange={(e) => {
+                    const newP = e.target.value;
+                    setTargetPlan(newP);
+                    setTargetCredits(newP === 'free' ? 5 : 999);
+                  }}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="free">FREE (Plan Gratuito / 5 Créditos)</option>
+                  <option value="pro">PRO (Generaciones Ilimitadas)</option>
+                  <option value="premium">PREMIUM (Acceso Total Ilimitado + Prioritario)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">Créditos de Generación IA</label>
+                <input
+                  type="number"
+                  value={targetCredits}
+                  onChange={(e) => setTargetCredits(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">Usa 999 para otorgar créditos ilimitados.</p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUserPlan(null)}
+                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPlan}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {savingPlan ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
