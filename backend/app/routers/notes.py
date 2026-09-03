@@ -20,83 +20,11 @@ def normalize_text(text: str) -> str:
 
 router = APIRouter(prefix="/api", tags=["notes"])
 
-DEMO_TITLES = ["Segunda Guerra Mundial", "Sistema Digestivo", "Teorema de Tales"]
-
-def _ensure_demo_notes(db: Session):
-    for title in DEMO_TITLES:
-        existing = db.query(models.Note).filter(models.Note.title == title).first()
-        if not existing:
-            admin_user = db.query(models.User).filter(models.User.role == "admin").first()
-            user_id = admin_user.id if admin_user else 1
-
-            demo_note = models.Note(
-                user_id=user_id,
-                title=title,
-                content=f"Juego de estudio demo gratuito sobre {title}. Aprende los conceptos fundamentales y pon a prueba tu conocimiento.",
-                is_free=True
-            )
-            db.add(demo_note)
-            db.commit()
-            db.refresh(demo_note)
-
-            for lvl in range(1, 6):
-                b = models.Block(note_id=demo_note.id, level=lvl, is_completed=False)
-                db.add(b)
-                db.commit()
-                db.refresh(b)
-
-                q1 = models.Question(
-                    block_id=b.id,
-                    type="multiple_choice",
-                    prompt=f"[{title} - Nivel {lvl}] ¿Cuál es el concepto clave principal?",
-                    options_json=json.dumps(["Concepto Fundamental", "Distractor A", "Distractor B", "Distractor C"]),
-                    correct_answer="Concepto Fundamental",
-                    explanation="Explicación didáctica del concepto clave."
-                )
-                q2 = models.Question(
-                    block_id=b.id,
-                    type="cloze",
-                    prompt=f"En el tema de {title}, la clave principal es ___.",
-                    options_json=json.dumps([]),
-                    correct_answer="fundamental",
-                    explanation="Palabra clave esperada para completar la oración."
-                )
-                q3 = models.Question(
-                    block_id=b.id,
-                    type="open_ended",
-                    prompt=f"Explica brevemente la importancia de {title} en su disciplina.",
-                    options_json=json.dumps([]),
-                    correct_answer="Es un pilar fundamental para comprender los procesos y aplicaciones prácticas.",
-                    explanation="Rúbrica conceptual esperada."
-                )
-                q4 = models.Question(
-                    block_id=b.id,
-                    type="examples",
-                    prompt=f"Proporciona un ejemplo práctico sobre la aplicación de {title}.",
-                    options_json=json.dumps([]),
-                    correct_answer="Un caso de estudio real o ejemplo práctico ilustrativo.",
-                    explanation="Ejemplo de aplicación en el mundo real."
-                )
-                q5 = models.Question(
-                    block_id=b.id,
-                    type="trick_question",
-                    prompt=f"¿Es un error común pensar que {title} no tiene relevancia actual?",
-                    options_json=json.dumps([]),
-                    correct_answer="Sí, es un malentendido común pero su impacto sigue siendo vigente.",
-                    explanation="Aclaración del malentendido habitual."
-                )
-                db.add_all([q1, q2, q3, q4, q5])
-                db.commit()
-
-
-
 @router.get("/notes", response_model=List[schemas.NoteOut])
 def get_user_notes(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
-    _ensure_demo_notes(db)
-
     free_notes = db.query(models.Note).filter(models.Note.is_free == True).all()
 
     if current_user.role == "admin":

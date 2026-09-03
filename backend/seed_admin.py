@@ -56,9 +56,9 @@ def seed_database():
         db.refresh(student)
         print(f"[SUCCESS] Usuario Estudiante asegurado: {student_email} / estudiante123")
 
-        # 3. Crear Apunte Demo de estudio gamificado
-        note = db.query(Note).filter(Note.title == "Fundamentos de Programación").first()
-        if not note:
+        # 3. Crear Apunte Demo de estudio gamificado SOLO si la base de datos está completamente vacía
+        total_existing_notes = db.query(Note).count()
+        if total_existing_notes == 0:
             note = Note(
                 user_id=student.id if student else admin.id,
                 title="Fundamentos de Programación",
