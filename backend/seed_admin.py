@@ -56,40 +56,168 @@ def seed_database():
         db.refresh(student)
         print(f"[SUCCESS] Usuario Estudiante asegurado: {student_email} / estudiante123")
 
-        # 3. Asegurar Apuntes Demo de estudio gamificado como registros reales en la base de datos
-        demo_games = [
-            {
-                "title": "Fundamentos de Programación",
-                "content": "Juego de estudio demo gratuito sobre Fundamentos de Programación en Python, estructuras de datos, funciones y sintaxis.",
-                "is_free": True
-            },
-            {
-                "title": "Segunda Guerra Mundial",
-                "content": "Juego de estudio demo gratuito sobre la Segunda Guerra Mundial, causas, antecedentes, desarrollo del conflicto y consecuencias globales.",
-                "is_free": True
-            },
-            {
-                "title": "Sistema Digestivo",
-                "content": "Juego de estudio demo gratuito sobre el Sistema Digestivo humano, órganos, enzimas, digestión mecánica y química.",
-                "is_free": True
-            },
-            {
-                "title": "Teorema de Tales",
-                "content": "Juego de estudio demo gratuito sobre el Teorema de Tales, geometría, semejanza de triángulos y proporciones.",
-                "is_free": True
-            }
-        ]
+        # 3. Asegurar Apuntes Demo de estudio gamificado con preguntas detalladas y reales
+        DEMO_SPECIFIC_QUESTIONS = {
+            "Segunda Guerra Mundial": [
+                {
+                    "type": "multiple_choice",
+                    "prompt": "¿En qué año comenzó la Segunda Guerra Mundial con la invasión nazi a Polonia?",
+                    "options": ["1939", "1914", "1941", "1945"],
+                    "correct": "1939",
+                    "explanation": "La invasión de Polonia por las tropas alemanas el 1 de septiembre de 1939 desató el conflicto en Europa."
+                },
+                {
+                    "type": "cloze",
+                    "prompt": "El pacto de no agresión firmado entre Alemania y la Unión Soviética en 1939 se conoció como el Pacto Molotov-___.",
+                    "options": [],
+                    "correct": "ribbentrop",
+                    "explanation": "El Pacto Molotov-Ribbentrop garantizaba la no agresión mutua entre la Alemania nazi y la URSS."
+                },
+                {
+                    "type": "open_ended",
+                    "prompt": "Explica la importancia estratégica de la Batalla de Stalingrado en el desenlace de la guerra.",
+                    "options": [],
+                    "correct": "Fue la batalla decisiva que frenó la expansión alemana en el frente oriental y marcó el inicio del repliegue nazi.",
+                    "explanation": "Stalingrado significó la pérdida irrecuperable del Sexto Ejército alemán."
+                },
+                {
+                    "type": "examples",
+                    "prompt": "Menciona un desarrollo tecnológico clave que surgió o se perfeccionó durante la Segunda Guerra Mundial.",
+                    "options": [],
+                    "correct": "El radar para detección aérea, los motores a reacción o la energía atómica.",
+                    "explanation": "La urgencia bélica aceleró avances científicos sin precedentes."
+                },
+                {
+                    "type": "trick_question",
+                    "prompt": "¿Es correcto afirmar que Estados Unidos entró a la guerra inmediatamente en 1939 al ser invadida Polonia?",
+                    "options": [],
+                    "correct": "No, EE.UU. mantuvo una postura de neutralidad hasta el ataque a Pearl Harbor en diciembre de 1941.",
+                    "explanation": "EE.UU. ingresó formalmente al conflicto a finales de 1941 tras el ataque japonés."
+                }
+            ],
+            "Sistema Digestivo": [
+                {
+                    "type": "multiple_choice",
+                    "prompt": "¿En qué parte del tubo digestivo ocurre la mayor absorción de nutrientes hacia el torrente sanguíneo?",
+                    "options": ["Intestino delgado", "Estómago", "Boca", "Intestino grueso"],
+                    "correct": "Intestino delgado",
+                    "explanation": "Las vellocidades del intestino delgado absorben la inmensa mayoría de nutrientes."
+                },
+                {
+                    "type": "cloze",
+                    "prompt": "La enzima digestiva presente en la saliva que comienza a descomponer los almidones se llama ___.",
+                    "options": [],
+                    "correct": "amilasa",
+                    "explanation": "La amilasa salival (o ptialina) inicia la digestión química de carbohidratos en la boca."
+                },
+                {
+                    "type": "open_ended",
+                    "prompt": "Describe el papel principal del ácido clorhídrico y la pepsina en el estómago.",
+                    "options": [],
+                    "correct": "El ácido clorhídrico destruye patógenos y activa la pepsina para descomponer las proteínas.",
+                    "explanation": "El ambiente ácido del estómago es esencial para la digestión proteica."
+                },
+                {
+                    "type": "examples",
+                    "prompt": "Menciona un ejemplo de digestión mecánica realizada por el cuerpo humano.",
+                    "options": [],
+                    "correct": "La masticación en la boca o los movimientos peristálticos en el esófago y estómago.",
+                    "explanation": "La digestión mecánica fragmenta físicamente los alimentos sin alterar su estructura química."
+                },
+                {
+                    "type": "trick_question",
+                    "prompt": "¿Es cierto que el hígado y el páncreas son órganos por los que circula directamente el bolo alimenticio?",
+                    "options": [],
+                    "correct": "Falso, son glándulas anexas que vierten secreciones pero el alimento nunca pasa a través de ellas.",
+                    "explanation": "Hígado y páncreas secretan bilis y jugo pancreático hacia el duodeno."
+                }
+            ],
+            "Teorema de Tales": [
+                {
+                    "type": "multiple_choice",
+                    "prompt": "¿Qué propiedad establece el Teorema de Tales cuando varias rectas paralelas cortan a dos transversales?",
+                    "options": ["Los segmentos resultantes son proporcionales", "Los ángulos resultantes siempre suman 90°", "Las áreas son perfectamente idénticas", "Las distancias se vuelven infinitas"],
+                    "correct": "Los segmentos resultantes son proporcionales",
+                    "explanation": "El Teorema de Tales relaciona las proporciones de segmentos cortados por paralelas."
+                },
+                {
+                    "type": "cloze",
+                    "prompt": "Se dice que dos triángulos son ___ si sus ángulos correspondientes son iguales y sus lados son proporcionales.",
+                    "options": [],
+                    "correct": "semejantes",
+                    "explanation": "La semejanza geométrica es el concepto central derivado del Teorema de Tales."
+                },
+                {
+                    "type": "open_ended",
+                    "prompt": "Explica cómo usó Tales de Mileto su teorema para calcular la altura de la Gran Pirámide de Guiza.",
+                    "options": [],
+                    "correct": "Comparó la longitud de la sombra de la pirámide con la sombra de un bastón de altura conocida.",
+                    "explanation": "Al medir las sombras en el mismo momento del día, la proporción bastón/sombra bastón es igual a pirámide/sombra pirámide."
+                },
+                {
+                    "type": "examples",
+                    "prompt": "Proporciona una aplicación práctica del Teorema de Tales en el dibujo técnico o la arquitectura.",
+                    "options": [],
+                    "correct": "División de un segmento en partes iguales o escalado de planos arquitectónicos.",
+                    "explanation": "Permite ajustar escalas manteniendo la fidelidad de proporciones."
+                },
+                {
+                    "type": "trick_question",
+                    "prompt": "¿El Teorema de Tales solo se aplica si las transversales forman un ángulo de 90° con las paralelas?",
+                    "options": [],
+                    "correct": "Falso, el teorema se cumple con cualquier inclinación de las rectas transversales.",
+                    "explanation": "La proporcionalidad se mantiene sin importar el ángulo de intersección."
+                }
+            ],
+            "Fundamentos de Programación": [
+                {
+                    "type": "multiple_choice",
+                    "prompt": "¿Qué palabra clave reservada se utiliza para declarar una función en Python?",
+                    "options": ["def", "function", "fn", "define"],
+                    "correct": "def",
+                    "explanation": "En Python, la instrucción 'def' da inicio a la definición de una función."
+                },
+                {
+                    "type": "cloze",
+                    "prompt": "Una colección ordenada de elementos que NO se puede modificar después de crearla en Python es una ___.",
+                    "options": [],
+                    "correct": "tupla",
+                    "explanation": "Las tuplas son inmutables a diferencia de las listas."
+                },
+                {
+                    "type": "open_ended",
+                    "prompt": "Explica la diferencia entre una estructura condicional 'if-else' y un bucle 'while'.",
+                    "options": [],
+                    "correct": "'if-else' ejecuta un bloque una sola vez según la condición, mientras que 'while' repite el bloque mientras la condición sea verdadera.",
+                    "explanation": "El condicional decide ramificaciones; el bucle ejecuta iteraciones."
+                },
+                {
+                    "type": "examples",
+                    "prompt": "Proporciona un ejemplo del uso de la función print() en Python para mostrar texto y variables.",
+                    "options": [],
+                    "correct": "print(f'Hola {nombre}, tu puntaje es {score}')",
+                    "explanation": "Las f-strings facilitan la interpolación limpia de variables."
+                },
+                {
+                    "type": "trick_question",
+                    "prompt": "¿El operador '=' en Python se utiliza para comparar si dos valores son exactamente iguales?",
+                    "options": [],
+                    "correct": "No, '=' es de asignación. Para comparar igualdad se requiere el operador '=='.",
+                    "explanation": "Confundir '=' con '==' es uno de los errores sintácticos más comunes en programación."
+                }
+            ]
+        }
 
         owner_id = student.id if student else admin.id
 
-        for game in demo_games:
-            existing = db.query(Note).filter(Note.title == game["title"]).first()
+        for title, q_list in DEMO_SPECIFIC_QUESTIONS.items():
+            existing = db.query(Note).filter(Note.title == title).first()
             if not existing:
                 note = Note(
                     user_id=owner_id,
-                    title=game["title"],
-                    content=game["content"],
-                    is_free=game["is_free"]
+                    title=title,
+                    content=f"Juego de estudio completo sobre {title}.",
+                    is_free=True
                 )
                 db.add(note)
                 db.commit()
@@ -101,50 +229,40 @@ def seed_database():
                     db.commit()
                     db.refresh(b)
 
-                    q1 = Question(
-                        block_id=b.id,
-                        type="multiple_choice",
-                        prompt=f"[{game['title']} - Nivel {lvl}] ¿Cuál es el concepto clave principal?",
-                        options_json=json.dumps(["Concepto Fundamental", "Distractor A", "Distractor B", "Distractor C"]),
-                        correct_answer="Concepto Fundamental",
-                        explanation="Explicación didáctica del concepto clave."
-                    )
-                    q2 = Question(
-                        block_id=b.id,
-                        type="cloze",
-                        prompt=f"En el tema de {game['title']}, la clave principal es ___.",
-                        options_json=json.dumps([]),
-                        correct_answer="fundamental",
-                        explanation="Palabra clave esperada para completar la oración."
-                    )
-                    q3 = Question(
-                        block_id=b.id,
-                        type="open_ended",
-                        prompt=f"Explica brevemente la importancia de {game['title']} en su disciplina.",
-                        options_json=json.dumps([]),
-                        correct_answer="Es un pilar fundamental para comprender los procesos y aplicaciones prácticas.",
-                        explanation="Rúbrica conceptual esperada."
-                    )
-                    q4 = Question(
-                        block_id=b.id,
-                        type="examples",
-                        prompt=f"Proporciona un ejemplo práctico sobre la aplicación de {game['title']}.",
-                        options_json=json.dumps([]),
-                        correct_answer="Un caso de estudio real o ejemplo práctico ilustrativo.",
-                        explanation="Ejemplo de aplicación en el mundo real."
-                    )
-                    q5 = Question(
-                        block_id=b.id,
-                        type="trick_question",
-                        prompt=f"¿Es un error común pensar que {game['title']} no tiene relevancia actual?",
-                        options_json=json.dumps([]),
-                        correct_answer="Sí, es un malentendido común pero su impacto sigue siendo vigente.",
-                        explanation="Aclaración del malentendido habitual."
-                    )
-                    db.add_all([q1, q2, q3, q4, q5])
+                    for q_item in q_list:
+                        q = Question(
+                            block_id=b.id,
+                            type=q_item["type"],
+                            prompt=q_item["prompt"],
+                            options_json=json.dumps(q_item.get("options", [])),
+                            correct_answer=q_item["correct"],
+                            explanation=q_item["explanation"]
+                        )
+                        db.add(q)
                     db.commit()
-
-                print(f"[SUCCESS] Juego Demo '{game['title']}' registrado en la base de datos.")
+                print(f"[SUCCESS] Juego Demo '{title}' creado con preguntas reales en la base de datos.")
+            else:
+                # Si el tema existe pero tiene preguntas plantilla, actualizar sus preguntas
+                first_block = db.query(Block).filter(Block.note_id == existing.id).first()
+                if first_block:
+                    sample_q = db.query(Question).filter(Question.block_id == first_block.id).first()
+                    if sample_q and ("Concepto Fundamental" in sample_q.prompt or "Distractor A" in sample_q.options_json):
+                        # Reemplazar preguntas plantilla por preguntas reales
+                        for b in existing.blocks:
+                            db.query(Question).filter(Question.block_id == b.id).delete()
+                            db.commit()
+                            for q_item in q_list:
+                                q = Question(
+                                    block_id=b.id,
+                                    type=q_item["type"],
+                                    prompt=q_item["prompt"],
+                                    options_json=json.dumps(q_item.get("options", [])),
+                                    correct_answer=q_item["correct"],
+                                    explanation=q_item["explanation"]
+                                )
+                                db.add(q)
+                            db.commit()
+                        print(f"[UPDATED] Preguntas del juego '{title}' actualizadas con contenido educativo real.")
 
         print("[COMPLETE] Siembra de datos completada satisfactoriamente.")
 

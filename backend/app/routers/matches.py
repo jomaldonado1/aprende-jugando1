@@ -88,18 +88,43 @@ def get_match(
     note = db.query(models.Note).filter(models.Note.id == match.note_id).first()
     creator = db.query(models.User).filter(models.User.id == match.creator_user_id).first()
 
-    # Obtener preguntas del primer bloque del apunte
-    first_block = (
+    # Si el usuario actual ya realizó un intento previo en este tema y aún no figura en el duelo, registrar su marca automáticamente
+    existing_p = db.query(models.MatchParticipant).filter(
+        models.MatchParticipant.match_id == match.id,
+        models.MatchParticipant.user_id == current_user.id
+    ).first()
+
+    if not existing_p:
+        last_attempt = (
+            db.query(models.Attempt)
+            .join(models.Block)
+            .filter(models.Block.note_id == match.note_id, models.Attempt.user_id == current_user.id)
+            .order_by(models.Attempt.id.desc())
+            .first()
+        )
+        if last_attempt:
+            auto_p = models.MatchParticipant(
+                match_id=match.id,
+                user_id=current_user.id,
+                score_total=last_attempt.score,
+                time_spent_seconds=45,
+                accuracy_percentage=last_attempt.score
+            )
+            db.add(auto_p)
+            db.commit()
+
+    # Obtener preguntas para el duelo: recolectar de los bloques del tema
+    blocks = (
         db.query(models.Block)
         .filter(models.Block.note_id == match.note_id)
         .order_by(models.Block.level)
-        .first()
+        .all()
     )
-    questions = []
-    if first_block:
-        questions = db.query(models.Question).filter(
-            models.Question.block_id == first_block.id
-        ).all()
+    all_questions = []
+    for b in blocks:
+        all_questions.extend(b.questions)
+    
+    duel_questions = all_questions[:5] if len(all_questions) >= 5 else all_questions
 
     # Leaderboard del duelo
     participants = (
@@ -137,7 +162,7 @@ def get_match(
         note_title=note.title if note else "Tema desconocido",
         creator_email=creator.email if creator else "desconocido",
         created_at=match.created_at,
-        questions=[schemas.QuestionOut.model_validate(q) for q in questions],
+        questions=[schemas.QuestionOut.model_validate(q) for q in duel_questions],
         leaderboard=leaderboard
     )
 
