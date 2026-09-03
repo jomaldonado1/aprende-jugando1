@@ -4,7 +4,7 @@ import api from '../api/axios';
 import { 
   ShieldCheck, Users, BookOpen, Trophy, CheckCircle, 
   LogOut, Sparkles, Activity, Edit3, Search, X, Save, 
-  AlertTriangle, RefreshCw, FileText, Globe, Plus, UploadCloud, Send, Trash2
+  AlertTriangle, RefreshCw, FileText, Globe, Plus, UploadCloud, Send, Trash2, Zap
 } from 'lucide-react';
 
 export default function AdminPanel() {
