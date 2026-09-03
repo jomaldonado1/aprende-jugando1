@@ -70,16 +70,29 @@ export default function DuelLobbyView({ initialCode, noteId, noteTitle, onBack, 
     });
   };
 
-  const handleStartPlaying = () => {
+  const handleStartPlaying = async () => {
     if (!matchData) return;
-    // Build fake block for QuizWizard
-    setFakeBlock({
-      id: null,
-      level: 1,
-      questions: matchData.questions || [],
-      match_code: matchData.share_code
-    });
-    setMode('playing');
+    setLoading(true);
+    setError(null);
+    try {
+      let fullData = matchData;
+      if (!fullData.questions || fullData.questions.length === 0) {
+        const res = await api.get(`/api/matches/${matchData.share_code}`);
+        fullData = res.data;
+        setMatchData(fullData);
+      }
+      setFakeBlock({
+        id: null,
+        level: 1,
+        questions: fullData.questions || [],
+        match_code: fullData.share_code
+      });
+      setMode('playing');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'No se pudieron cargar las preguntas del duelo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDuelResult = async (result) => {
