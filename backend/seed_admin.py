@@ -209,38 +209,41 @@ def seed_database():
         }
 
         owner_id = student.id if student else admin.id
+        total_notes = db.query(Note).count()
 
         for title, q_list in DEMO_SPECIFIC_QUESTIONS.items():
             existing = db.query(Note).filter(Note.title == title).first()
             if not existing:
-                note = Note(
-                    user_id=owner_id,
-                    title=title,
-                    content=f"Juego de estudio completo sobre {title}.",
-                    is_free=True
-                )
-                db.add(note)
-                db.commit()
-                db.refresh(note)
-
-                for lvl in range(1, 6):
-                    b = Block(note_id=note.id, level=lvl, is_completed=False)
-                    db.add(b)
+                # SOLO crear si la base de datos está completamente vacía
+                if total_notes == 0:
+                    note = Note(
+                        user_id=owner_id,
+                        title=title,
+                        content=f"Juego de estudio completo sobre {title}.",
+                        is_free=True
+                    )
+                    db.add(note)
                     db.commit()
-                    db.refresh(b)
+                    db.refresh(note)
 
-                    for q_item in q_list:
-                        q = Question(
-                            block_id=b.id,
-                            type=q_item["type"],
-                            prompt=q_item["prompt"],
-                            options_json=json.dumps(q_item.get("options", [])),
-                            correct_answer=q_item["correct"],
-                            explanation=q_item["explanation"]
-                        )
-                        db.add(q)
-                    db.commit()
-                print(f"[SUCCESS] Juego Demo '{title}' creado con preguntas reales en la base de datos.")
+                    for lvl in range(1, 6):
+                        b = Block(note_id=note.id, level=lvl, is_completed=False)
+                        db.add(b)
+                        db.commit()
+                        db.refresh(b)
+
+                        for q_item in q_list:
+                            q = Question(
+                                block_id=b.id,
+                                type=q_item["type"],
+                                prompt=q_item["prompt"],
+                                options_json=json.dumps(q_item.get("options", [])),
+                                correct_answer=q_item["correct"],
+                                explanation=q_item["explanation"]
+                            )
+                            db.add(q)
+                        db.commit()
+                    print(f"[SUCCESS] Juego Demo '{title}' creado con preguntas reales en la base de datos.")
             else:
                 # Si el tema existe pero tiene preguntas plantilla, actualizar sus preguntas
                 first_block = db.query(Block).filter(Block.note_id == existing.id).first()
