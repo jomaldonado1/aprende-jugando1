@@ -84,6 +84,7 @@ export default function QuizWizard({ block, noteId, onClose, onComplete }) {
   const [showExpected, setShowExpected] = useState({});
   const [timedOut, setTimedOut] = useState(false);
 
+  const startTimeRef = useRef(Date.now());
   const timerRef = useRef(null);
   const currentQ = questions[currentIdx];
 
@@ -180,6 +181,7 @@ function normalizeText(text) {
   const handleSubmit = async (finalScores) => {
     setSubmitting(true);
     setEvalError(null);
+    const elapsedSecs = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
 
     // Modo Duelo (sin block_id en la BD)
     if (!block.id) {
@@ -208,6 +210,9 @@ function normalizeText(text) {
       const scorePercent = Math.round((totalCorrect / (questions.length || 1)) * 100);
       const enriched = {
         score: scorePercent,
+        score_total: scorePercent,
+        accuracy_percentage: scorePercent,
+        time_spent_seconds: elapsedSecs,
         is_passed: scorePercent >= 60,
         details,
         time_bonuses: finalScores.reduce((acc, s) => { acc[s.questionId] = s.timeBonus || 0; return acc; }, {}),

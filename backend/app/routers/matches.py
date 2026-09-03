@@ -124,7 +124,11 @@ def get_match(
     for b in blocks:
         all_questions.extend(b.questions)
     
-    duel_questions = all_questions[:5] if len(all_questions) >= 5 else all_questions
+    if all_questions:
+        rng = random.Random(match.share_code)
+        duel_questions = rng.sample(all_questions, min(len(all_questions), 5))
+    else:
+        duel_questions = []
 
     # Leaderboard del duelo
     participants = (

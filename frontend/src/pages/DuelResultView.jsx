@@ -1,24 +1,33 @@
-import React from 'react';
-import { Trophy, Clock, Target, Swords, Crown, Star, CheckCircle, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trophy, Clock, Target, Swords, Crown, Star, CheckCircle, Copy, Check } from 'lucide-react';
 
 function formatTime(seconds) {
-  if (!seconds) return '—';
+  if (!seconds || seconds <= 0) return '—';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 export default function DuelResultView({ myResult, opponentResult, matchData, onBack }) {
-  // myResult y opponentResult: { player_name, score_total, accuracy_percentage, time_spent_seconds }
+  const [copied, setCopied] = useState(false);
   const myScore = myResult?.score_total ?? myResult?.score ?? 0;
   const opponentScore = opponentResult?.score_total ?? 0;
 
-  const iWon = opponentResult ? myScore > opponentScore : true;
-  const isDraw = opponentResult && myScore === opponentScore;
+  const hasOpponent = Boolean(opponentResult);
+  const iWon = hasOpponent ? myScore > opponentScore : false;
+  const isDraw = hasOpponent && myScore === opponentScore;
+
+  const handleCopy = () => {
+    const link = matchData?.share_link || window.location.href;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
 
   const participants = [
     { ...myResult, label: 'Tú', isMe: true },
-    ...(opponentResult ? [{ ...opponentResult, label: opponentResult.player_name, isMe: false }] : [])
+    ...(hasOpponent ? [{ ...opponentResult, label: opponentResult.player_name || 'Rival', isMe: false }] : [])
   ].sort((a, b) => (b.score_total ?? b.score ?? 0) - (a.score_total ?? a.score ?? 0));
 
   return (
@@ -26,27 +35,40 @@ export default function DuelResultView({ myResult, opponentResult, matchData, on
       {/* Resultado principal */}
       <div className="text-center space-y-2">
         <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center border-2 ${
-          isDraw
+          !hasOpponent
+            ? 'bg-indigo-500/20 border-indigo-500/40 shadow-xl shadow-indigo-500/20'
+            : isDraw
             ? 'bg-amber-500/20 border-amber-500/40 shadow-xl shadow-amber-500/20'
             : iWon
             ? 'bg-emerald-500/20 border-emerald-500/40 shadow-xl shadow-emerald-500/20'
             : 'bg-rose-500/20 border-rose-500/40'
         }`}>
-          {isDraw
-            ? <Star className="w-10 h-10 text-amber-400" />
-            : iWon
-            ? <Crown className="w-10 h-10 text-amber-400 animate-bounce" />
-            : <Swords className="w-10 h-10 text-rose-400" />
-          }
+          {!hasOpponent ? (
+            <Swords className="w-10 h-10 text-indigo-400" />
+          ) : isDraw ? (
+            <Star className="w-10 h-10 text-amber-400" />
+          ) : iWon ? (
+            <Crown className="w-10 h-10 text-amber-400 animate-bounce" />
+          ) : (
+            <Swords className="w-10 h-10 text-rose-400" />
+          )}
         </div>
 
         <div>
           <h3 className="text-2xl font-black text-white">
-            {isDraw ? '¡Empate! 🤝' : iWon ? '¡Ganaste el Duelo! 🏆' : '¡Buen intento! 💪'}
+            {!hasOpponent
+              ? '¡Puntaje Registrado! ⚔️'
+              : isDraw
+              ? '¡Empate! 🤝'
+              : iWon
+              ? '¡Ganaste el Duelo! 🏆'
+              : '¡Buen intento! 💪'}
           </h3>
-          {matchData && (
-            <p className="text-xs text-slate-400 mt-1">{matchData.note_title}</p>
-          )}
+          <p className="text-xs text-slate-400 mt-1">
+            {!hasOpponent
+              ? 'Tu marca quedó registrada. Invita a un amigo para comparar quién queda en la cima del Ranking.'
+              : (matchData?.note_title || 'Resultado del Duelo')}
+          </p>
         </div>
       </div>
 
@@ -54,7 +76,7 @@ export default function DuelResultView({ myResult, opponentResult, matchData, on
       <div className="grid grid-cols-1 gap-3">
         {participants.map((p, idx) => {
           const score = p.score_total ?? p.score ?? 0;
-          const isWinner = idx === 0 && !isDraw;
+          const isWinner = hasOpponent && idx === 0 && !isDraw;
           return (
             <div
               key={idx}
@@ -100,10 +122,22 @@ export default function DuelResultView({ myResult, opponentResult, matchData, on
       </div>
 
       {/* Si no hay oponente todavía */}
-      {!opponentResult && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-center text-xs text-slate-400 space-y-1">
-          <p>Tu puntaje fue registrado en el duelo.</p>
-          <p className="text-slate-500">Cuando tu oponente juegue, podrás ver la comparación aquí.</p>
+      {!hasOpponent && (
+        <div className="space-y-3">
+          <button
+            onClick={handleCopy}
+            className="w-full py-3 bg-indigo-600/20 border border-indigo-500/40 hover:bg-indigo-600/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all"
+          >
+            {copied ? (
+              <><Check className="w-4 h-4 text-emerald-400" /> Link de Duelo Copiado!</>
+            ) : (
+              <><Copy className="w-4 h-4" /> Copiar Link para Desafiar a un Amigo</>
+            )}
+          </button>
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 text-center text-[11px] text-slate-400">
+            <p>Posición actual en esta sala: <strong className="text-amber-300">#1</strong></p>
+            <p className="text-slate-500 mt-0.5">Cuando tus amigos jueguen con el link, la tabla se actualizará automáticamente.</p>
+          </div>
         </div>
       )}
 
@@ -116,3 +150,4 @@ export default function DuelResultView({ myResult, opponentResult, matchData, on
     </div>
   );
 }
+
