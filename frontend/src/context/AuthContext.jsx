@@ -3,28 +3,75 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
+const safeGetStorage = (key) => {
+  try {
+    const val = localStorage.getItem(key);
+    if (!val || val === 'undefined' || val === 'null') return null;
+    return val;
+  } catch (e) {
+    console.error(`Error reading ${key} from localStorage:`, e);
+    return null;
+  }
+};
+
+const safeGetJSONStorage = (key) => {
+  try {
+    const val = safeGetStorage(key);
+    return val ? JSON.parse(val) : null;
+  } catch (e) {
+    console.error(`Error parsing ${key} from localStorage:`, e);
+    try { localStorage.removeItem(key); } catch (_) {}
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [user, setUser] = useState(() => safeGetJSONStorage('user'));
+  const [token, setToken] = useState(() => safeGetStorage('token'));
   const [loading, setLoading] = useState(true);
 
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    } catch (e) {
+      console.error('Error removing token/user from localStorage:', e);
+    }
+  };
+
   useEffect(() => {
+    let isMounted = true;
     const checkAuth = async () => {
       if (token) {
         try {
-          const res = await api.get('/api/auth/me');
-          setUser(res.data);
-          localStorage.setItem('user', JSON.stringify(res.data));
+          // Timeout rápido de 8s para evitar que el usuario se quede en pantalla de carga si Render duerme
+          const res = await api.get('/api/auth/me', { timeout: 8000 });
+          if (isMounted) {
+            setUser(res.data);
+            try { localStorage.setItem('user', JSON.stringify(res.data)); } catch (_) {}
+          }
         } catch (err) {
-          logout();
+          console.warn('Error al verificar sesión (servidor inaccesible o token expirado):', err);
+          if (isMounted) {
+            logout();
+          }
+        }
+      } else {
+        if (isMounted) {
+          setUser(null);
         }
       }
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     };
+
     checkAuth();
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   const login = async (email, password) => {
@@ -34,15 +81,19 @@ export const AuthProvider = ({ children }) => {
     const { access_token, user: loggedUser } = res.data;
     setToken(access_token);
     setUser(loggedUser);
-    localStorage.setItem('token', access_token);
-    localStorage.setItem('user', JSON.stringify(loggedUser));
+    try {
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(loggedUser));
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
     return loggedUser;
   };
 
   const register = async (email, password, secret_question = null, secret_answer = null) => {
     const cleanEmail = email ? email.trim().toLowerCase() : '';
     const cleanPassword = password ? password.trim() : '';
-    const res = await api.post('/api/auth/register', { 
+    await api.post('/api/auth/register', { 
       email: cleanEmail, 
       password: cleanPassword, 
       secret_question, 
@@ -50,13 +101,6 @@ export const AuthProvider = ({ children }) => {
     });
     // Tras registrarse, iniciar sesión automáticamente
     return await login(cleanEmail, cleanPassword);
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
   return (
@@ -73,3 +117,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

@@ -18,8 +18,19 @@ function useKeepAlive() {
 }
 
 function MainRouter() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const [showSlowNotice, setShowSlowNotice] = React.useState(false);
   useKeepAlive();
+
+  useEffect(() => {
+    let timer;
+    if (loading) {
+      timer = setTimeout(() => setShowSlowNotice(true), 4000);
+    } else {
+      setShowSlowNotice(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const path = window.location.pathname;
   const matchDuel = path.match(/\/duel\/([A-Za-z0-9]+)/);
@@ -27,10 +38,25 @@ function MainRouter() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Cargando la plataforma...</p>
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+        <div className="text-center space-y-4 max-w-xs">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-200">Cargando la plataforma...</p>
+            {showSlowNotice && (
+              <p className="text-xs text-indigo-300 animate-pulse">
+                🌙 Despertando servidor en Render (puede tomar 15-30 seg)...
+              </p>
+            )}
+          </div>
+          {showSlowNotice && (
+            <button
+              onClick={() => logout()}
+              className="mt-2 text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-all cursor-pointer"
+            >
+              Ir a Inicio de Sesión
+            </button>
+          )}
         </div>
       </div>
     );
