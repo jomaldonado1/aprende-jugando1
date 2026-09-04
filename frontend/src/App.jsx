@@ -45,7 +45,7 @@ function MainRouter() {
             <p className="text-sm font-semibold text-slate-200">Cargando la plataforma...</p>
             {showSlowNotice && (
               <p className="text-xs text-indigo-300 animate-pulse">
-                🌙 Despertando servidor en Render (puede tomar 15-30 seg)...
+                Conectando con la plataforma, por favor aguarda unos segundos...
               </p>
             )}
           </div>
@@ -70,7 +70,7 @@ function MainRouter() {
     return <AdminPanel />;
   }
 
-  return <StudentDashboard initialDuelCode={initialDuelCode} />;
+  return <StudentDashboard key={user.id} initialDuelCode={initialDuelCode} />;
 }
 
 export default function App() {

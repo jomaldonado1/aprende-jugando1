@@ -56,11 +56,15 @@ export default function StudentDashboard({ initialDuelCode }) {
         api.get('/api/notes'),
         api.get('/api/attempts')
       ]);
-      setNotes(notesRes.data);
-      setAttempts(attemptsRes.data);
-      if (notesRes.data.length > 0 && !selectedNote) {
-        setSelectedNote(notesRes.data[0]);
-      }
+      const fetchedNotes = notesRes.data || [];
+      setNotes(fetchedNotes);
+      setAttempts(attemptsRes.data || []);
+
+      setSelectedNote(prev => {
+        if (!prev) return fetchedNotes[0] || null;
+        const match = fetchedNotes.find(n => n.id === prev.id);
+        return match || fetchedNotes[0] || null;
+      });
     } catch (err) {
       console.error('Error al cargar datos:', err);
     } finally {
@@ -69,8 +73,11 @@ export default function StudentDashboard({ initialDuelCode }) {
   };
 
   useEffect(() => {
+    setSelectedNote(null);
+    setNotes([]);
+    setAttempts([]);
     fetchData();
-  }, []);
+  }, [user?.id]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -154,10 +161,6 @@ export default function StudentDashboard({ initialDuelCode }) {
   const handleQuizComplete = async (result) => {
     setQuizResult(result);
     await fetchData();
-    if (selectedNote) {
-      const updatedBlocks = await api.get(`/api/notes/${selectedNote.id}/blocks`);
-      setSelectedNote({ ...selectedNote, blocks: updatedBlocks.data });
-    }
   };
 
 

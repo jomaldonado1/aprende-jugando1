@@ -34,9 +34,14 @@ def get_user_notes(
         notes_dict = {n.id: n for n in (free_notes + user_notes)}
         notes = list(notes_dict.values())
     
-    for note in notes:
-        _process_blocks_unlocked(note.blocks)
-    return notes
+    passed_attempts = db.query(models.Attempt.block_id).filter(
+        models.Attempt.user_id == current_user.id,
+        models.Attempt.is_passed == True
+    ).all()
+    passed_block_ids = {a[0] for a in passed_attempts}
+
+    return [_build_note_out(note, passed_block_ids) for note in notes]
+
 
 
 @router.post("/notes/extract-file")
@@ -147,8 +152,12 @@ def generate_note_with_ai(
             db.commit()
 
         db.refresh(new_note)
-        _process_blocks_unlocked(new_note.blocks)
-        return new_note
+        passed_attempts = db.query(models.Attempt.block_id).filter(
+            models.Attempt.user_id == current_user.id,
+            models.Attempt.is_passed == True
+        ).all()
+        passed_block_ids = {a[0] for a in passed_attempts}
+        return _build_note_out(new_note, passed_block_ids)
 
     except HTTPException:
         db.rollback()
@@ -176,8 +185,12 @@ def get_note_blocks(
         raise HTTPException(status_code=404, detail="Apunte no encontrado")
     
     blocks = db.query(models.Block).filter(models.Block.note_id == note_id).order_by(models.Block.level).all()
-    _process_blocks_unlocked(blocks)
-    return blocks
+    passed_attempts = db.query(models.Attempt.block_id).filter(
+        models.Attempt.user_id == current_user.id,
+        models.Attempt.is_passed == True
+    ).all()
+    passed_block_ids = {a[0] for a in passed_attempts}
+    return _process_blocks_unlocked(blocks, passed_block_ids)
 
 
 @router.post("/quiz/submit", response_model=schemas.AttemptOut)
@@ -288,9 +301,8 @@ def submit_quiz(
         final_score = round(total_score / len(questions), 2)
         is_passed = final_score >= 60.0
 
-        if is_passed:
-            block.is_completed = True
-            db.commit()
+        # No mutar block.is_completed globalmente en la DB.
+        # El avance de niveles por usuario se calcula mediante los Attempt del usuario.
 
         attempt = models.Attempt(
             user_id=current_user.id,
@@ -341,11 +353,37 @@ def get_user_attempts(
     ]
 
 
-def _process_blocks_unlocked(blocks):
+def _process_blocks_unlocked(blocks: List[models.Block], passed_block_ids: set) -> List[schemas.BlockOut]:
     sorted_blocks = sorted(blocks, key=lambda b: b.level)
+    processed = []
     for idx, b in enumerate(sorted_blocks):
+        is_completed = b.id in passed_block_ids
         if idx == 0:
-            b.is_unlocked = True
+            is_unlocked = True
         else:
             prev_block = sorted_blocks[idx - 1]
-            b.is_unlocked = prev_block.is_completed
+            is_unlocked = prev_block.id in passed_block_ids
+
+        questions_out = [schemas.QuestionOut.model_validate(q) for q in b.questions]
+        processed.append(schemas.BlockOut(
+            id=b.id,
+            note_id=b.note_id,
+            level=b.level,
+            is_completed=is_completed,
+            is_unlocked=is_unlocked,
+            questions=questions_out
+        ))
+    return processed
+
+
+def _build_note_out(note: models.Note, passed_block_ids: set) -> schemas.NoteOut:
+    processed_blocks = _process_blocks_unlocked(note.blocks, passed_block_ids)
+    return schemas.NoteOut(
+        id=note.id,
+        user_id=note.user_id,
+        title=note.title,
+        content=note.content,
+        is_free=note.is_free,
+        created_at=note.created_at,
+        blocks=processed_blocks
+    )

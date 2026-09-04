@@ -47,7 +47,7 @@ export default function AuthPage() {
       }
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
-        setError('El servidor tardó demasiado en responder. Es normal la primera vez (el servidor gratuito se despierta en ~30-60s). Intenta de nuevo en un momento.');
+        setError('No pudimos conectar en este momento. Por favor, intenta nuevamente en unos segundos.');
       } else if (err.response?.status === 400 && (err.response?.data?.detail?.includes('registrado') || err.response?.data?.detail?.includes('uso') || err.response?.data?.detail?.includes('correo'))) {
         setError('Este correo ya está en uso, intenta iniciar sesión.');
       } else {
@@ -74,7 +74,7 @@ export default function AuthPage() {
       setViewMode('forgot_step2');
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
-        setError('No se pudo conectar al servidor backend.');
+        setError('No pudimos conectar en este momento. Por favor, intenta de nuevo.');
       } else {
         setError(err.response?.data?.detail || 'No se pudo obtener la pregunta de seguridad.');
       }
@@ -99,7 +99,7 @@ export default function AuthPage() {
       setViewMode('forgot_success');
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
-        setError('No se pudo conectar al servidor backend.');
+        setError('No pudimos conectar en este momento. Por favor, intenta de nuevo.');
       } else {
         setError(err.response?.data?.detail || 'Error al restablecer la contraseña.');
       }
@@ -117,7 +117,7 @@ export default function AuthPage() {
       await login(demoEmail, demoPassword);
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message?.includes('Network Error') || !err.response) {
-        setError('No se pudo conectar al servidor backend. Si estás en producción, verifica la variable VITE_API_URL.');
+        setError('No pudimos conectar en este momento. Por favor, intenta de nuevo.');
       } else {
         setError(err.response?.data?.detail || 'Error al iniciar sesión con cuenta demo.');
       }
@@ -295,7 +295,7 @@ export default function AuthPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
                     </svg>
-                    {slowServer ? '🌙 Despertando servidor... (30-60s)' : 'Verificando...'}
+                    {slowServer ? 'Conectando...' : 'Verificando...'}
                   </span>
                 ) : (
                   <>
